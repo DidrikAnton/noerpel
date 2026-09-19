@@ -1,0 +1,135 @@
+import logging
+import asyncio
+import json
+import os
+from datetime import datetime, timedelta
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# === НАСТРОЙКИ ===
+# Токен и URL берутся из переменных окружения на сервере или подставляются по умолчанию
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ВАШ_ТОКЕН_ОТ_BOTFATHER")
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://ваш-логин.github.io/имя-репозитория/")
+USERS_FILE = "users.json"
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+scheduler = AsyncIOScheduler()
+
+# === БАЗА ДАННЫХ ЗАПРЕТОВ (Дни недели: 0=Пн, 1=Вт, ..., 5=Сб, 6=Вс) ===
+BANS_DATABASE = [
+    {"country": "🇩🇪 Германия", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 22:00"},
+    {"country": "🇩🇪 Германия", "day": 5, "title": "Субботний летний запрет (июль-авг)", "times": "07:00 - 20:00"},
+    {"country": "🇫🇷 Франция", "day": 5, "title": "Субботний уикенд-запрет", "times": "22:00 - 24:00"},
+    {"country": "🇫🇷 Франция", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 22:00"},
+    {"country": "🇦🇹 Австрия", "day": 5, "title": "Субботний запрет", "times": "15:00 - 24:00"},
+    {"country": "🇦🇹 Австрия", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 22:00"},
+    {"country": "🇵🇱 Польша", "day": 4, "title": "Пятничный летний запрет", "times": "18:00 - 22:00"},
+    {"country": "🇵🇱 Польша", "day": 5, "title": "Субботний летний запрет", "times": "08:00 - 14:00"},
+    {"country": "🇵🇱 Польша", "day": 6, "title": "Воскресный запрет", "times": "08:00 - 22:00"},
+    {"country": "🇨🇿 Чехия", "day": 6, "title": "Воскресный запрет", "times": "13:00 - 22:00"},
+    {"country": "🇸🇰 Словакия", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 22:00"},
+    {"country": "🇭🇺 Венгрия", "day": 5, "title": "Субботний запрет", "times": "22:00 - 24:00"},
+    {"country": "🇭🇺 Венгрия", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 22:00"},
+    {"country": "🇸🇮 Словения", "day": 6, "title": "Воскресный запрет", "times": "08:00 - 22:00"},
+    {"country": "🇨🇭 Швейцария", "day": 6, "title": "Воскресный запрет", "times": "00:00 - 24:00"},
+]
+
+# === РАБОТА С БАЗОЙ ПОДПИСЧИКОВ ===
+def load_users():
+    try:
+        with open(USERS_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+def save_user(chat_id):
+    users = load_users()
+    if chat_id not in users:
+        users.add(chat_id)
+        with open(USERS_FILE, "w") as f:
+            json.dump(list(users), f)
+
+# === КЛАВИАТУРА В ЧАТЕ ===
+def main_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🚛 Открыть Калькулятор & Запреты",
+                    web_app=WebAppInfo(url=WEB_APP_URL)
+                )
+            ],
+            [
+                InlineKeyboardButton(text="🔔 Проверить запреты на завтра", callback_data="check_tomorrow")
+            ]
+        ]
+    )
+
+# === ФОРМИРОВАНИЕ СООБЩЕНИЯ О ЗАПРЕТАХ ===
+def get_tomorrow_bans_text():
+    tomorrow = datetime.now() + timedelta(days=1)
+    tomorrow_day_index = tomorrow.weekday()  # 0=Пн, 6=Вс
+    date_str = tomorrow.strftime("%d.%m.%Y")
+
+    active_bans = [b for b in BANS_DATABASE if b["day"] == tomorrow_day_index]
+
+    if active_bans:
+        text = f"🚨 **ВНИМАНИЕ! Запреты движения на завтра ({date_str}):**\n\n"
+        for ban in active_bans:
+            text += f"• **{ban['country']}**: {ban['title']} ({ban['times']})\n"
+        text += "\n📍 Для интерактивной карты и подробностей нажимайте кнопку ниже."
+    else:
+        text = f"✅ **На завтра ({date_str}) основных ограничений не обнаружено.**\nУдачного пути! 🚛"
+
+    return text
+
+# === АВТОМАТИЧЕСКАЯ ФУНКЦИЯ РАССЫЛКИ ===
+async def send_daily_notifications():
+    """Эта функция запускается автоматически по расписанию"""
+    users = load_users()
+    ban_text = get_tomorrow_bans_text()
+
+    logging.info(f"Запуск авто-рассылки для {len(users)} пользователей...")
+
+    for chat_id in users:
+        try:
+            await bot.send_message(chat_id, ban_text, parse_mode="Markdown", reply_markup=main_keyboard())
+            await asyncio.sleep(0.05)  # Задержка, чтобы соблюдать лимиты Telegram
+        except Exception as e:
+            logging.error(f"Не удалось отправить сообщение {chat_id}: {e}")
+
+# === ОБРАБОТКА КОМАНД ===
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    save_user(message.chat.id)
+    welcome_text = (
+        f"Привет, {message.from_user.first_name}! 👋\n\n"
+        "Вы успешно зарегистрированы в **Норпель Помощник Водителя**!\n\n"
+        "⏰ Теперь каждый день в **19:00** я буду автоматически присылать вам в этот чат уведомления о запретах движения на завтра."
+    )
+    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard())
+
+@dp.callback_query(F.data == "check_tomorrow")
+async def process_check_tomorrow(callback: types.CallbackQuery):
+    text = get_tomorrow_bans_text()
+    await callback.message.answer(text, parse_mode="Markdown", reply_markup=main_keyboard())
+    await callback.answer()
+
+# === ЗАПУСК ПЛАНИРОВЩИКА И БОТА ===
+async def main():
+    # Настраиваем ежедневную отправку в 19:00 (часы и минуты можно изменить)
+    scheduler.add_job(send_daily_notifications, 'cron', hour=19, minute=0)
+    scheduler.start()
+
+    logging.info("Бот с авто-уведомлениями успешно запущен!")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
