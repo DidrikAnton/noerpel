@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инструменты водителя</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .calc-view { display: none; }
+        .calc-view.active { display: block; }
+        .active-tab { background-color: #2563eb !important; color: white !important; }
+        .tab-btn { transition: all 0.2s; }
+        .work-day { background-color: #3b82f6; color: white; }
+        .vacation-day { background-color: #ef4444; color: white; }
+        .out-range-day { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; opacity: 0.5; }
+        .day-cell { height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-size: 12px;}
+        .month-card { cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .month-card.selected { border-color: #4f46e5; background-color: #eef2ff; }
+        
+        .pause-btn { transition: all 0.2s; border: 2px solid transparent; }
+        .pause-btn.active-pause { background-color: #22c55e !important; color: white !important; border-color: #166534; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen" onload="loadEverything()">
+
+    <div class="flex justify-center gap-2 p-4 bg-white shadow-sm sticky top-0 z-50 overflow-x-auto">
+        <button id="btn-fuel" onclick="switchTab('fuel')" class="tab-btn px-6 py-2 bg-gray-200 rounded-full font-bold active-tab">Топливо</button>
+        <button id="btn-time" onclick="switchTab('time')" class="tab-btn px-6 py-2 bg-gray-200 rounded-full font-bold">Паузы</button>
+        <button id="btn-planner" onclick="switchTab('planner')" class="tab-btn px-6 py-2 bg-gray-200 rounded-full font-bold">Доход</button>
+        <button id="btn-bans" onclick="switchTab('bans')" class="tab-btn px-6 py-2 bg-gray-200 rounded-full font-bold">Запреты</button>
+    </div>
+
+    <div id="view-fuel" class="calc-view active p-4">
+        <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
+            <h1 class="text-xl font-bold mb-4">Калькулятор топлива</h1>
+            <div class="space-y-3" oninput="saveData(); calculate()">
+                <div><label class="block text-sm font-medium">Топливо при приёмке (л)</label><input type="number" id="startFuel" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium">Общее кол-во заправок (л)</label><input type="number" id="totalRefuel" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium">Остаток при сдаче (л)</label><input type="number" id="endFuel" class="w-full border p-2 rounded font-bold text-blue-600"></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-sm font-medium">Пробег приём (км)</label><input type="number" id="startMileage" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium">Пробег сдача (км)</label><input type="number" id="endMileage" class="w-full border p-2 rounded"></div>
+                </div>
+                <div><label class="block text-sm font-medium">Норма расхода</label><input type="number" id="norm" value="25" class="w-full border p-2 rounded"></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-sm font-medium">Левый бак (см)</label><input type="number" id="leftCm" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium">Правый бак (см)</label><input type="number" id="rightCm" class="w-full border p-2 rounded"></div>
+                </div>
+                <div><label class="block text-sm font-medium">Секретное значение (л)</label><input type="number" id="secretValue" class="w-full border p-2 rounded"></div>
+                <button onclick="calculateFromCm()" class="w-full bg-blue-600 text-white p-2 rounded font-bold mt-2">Рассчитать по см</button>
+                <div class="mt-4 p-4 bg-gray-50 rounded text-sm space-y-2">
+                    <p>Остаток из замеров: <span id="cmResult" class="font-bold">0</span> л</p>
+                    <p>Итого пробег: <span id="totalMileage" class="font-bold">0</span> км</p>
+                    <p>Потрачено: <span id="spentFuel" class="font-bold">0</span> л</p>
+                    <p>Расход (л/100км): <span id="consumption" class="font-bold">0</span> л/100км</p>
+                    <p>Экономия/Перерасход: <span id="economy" class="font-bold">0</span> л</p>
+                    <div class="border-t pt-2 mt-2"><p class="text-blue-800 font-bold">Секретный расход: <span id="secretResult">0</span> л/100км</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-time" class="calc-view p-4 hidden">
+        <div class="max-w-sm mx-auto">
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                <h2 class="font-bold mb-4 text-center">Выбор интервала паузы</h2>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div id="btn-pause-9" class="pause-btn bg-gray-200 p-3 rounded-lg cursor-pointer text-center font-bold" onclick="calculateFixed(9, 'btn-pause-9')">9 ч</div>
+                    <div id="btn-pause-11" class="pause-btn bg-gray-200 p-3 rounded-lg cursor-pointer text-center font-bold" onclick="calculateFixed(11, 'btn-pause-11')">11 ч</div>
+                    <div id="btn-pause-45" class="pause-btn bg-gray-200 p-3 rounded-lg cursor-pointer text-center font-bold" onclick="calculateFixed(45, 'btn-pause-45')">45 ч</div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs text-gray-500">Дата начала:</label>
+                    <input type="datetime-local" id="time-start" class="w-full p-2 border rounded-lg">
+                </div>
+                <div id="res-fixed" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg hidden text-sm"></div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="font-bold mb-4 text-center">Интервал между датами</h2>
+                <label class="block text-xs text-gray-500">Начало:</label>
+                <input type="datetime-local" id="custom-start" class="w-full p-2 border rounded-lg mb-2">
+                <label class="block text-xs text-gray-500">Конец:</label>
+                <input type="datetime-local" id="custom-end" class="w-full p-2 border rounded-lg mb-4">
+                <button onclick="calculateCustom()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-bold">Рассчитать</button>
+                <div id="res-custom" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg hidden text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-planner" class="calc-view p-4 hidden">
+        <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
+            <h1 class="text-xl font-bold text-gray-800 border-b pb-3">Планировщик дохода водителя</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" oninput="handleDateChange()">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Дата начала каденции</label>
+                    <input type="date" id="startDate" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Дата окончания каденции</label>
+                    <input type="date" id="endDate" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Количество месяцев</label>
+                    <input type="number" id="monthsCount" value="2" min="1" max="12" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                <div class="space-y-3">
+                    <h3 class="font-bold text-sm text-gray-700">График каденции</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-500">Недель работы</label>
+                            <input type="number" id="workWeeks" value="8" class="w-full border p-2 rounded-lg text-sm" oninput="saveData(); calculatePlanner();">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">Недель отдыха</label>
+                            <input type="number" id="vacationWeeks" value="4" class="w-full border p-2 rounded-lg text-sm" oninput="saveData(); calculatePlanner();">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-sm text-gray-700">Ставка и Загрузки</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-500">Базовая ставка (€/день)</label>
+                            <input type="number" id="dailyPay" value="95" class="w-full border p-2 rounded-lg text-sm font-bold text-indigo-600" oninput="saveData(); calculatePlanner();">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">Кол-во загрузок/смен (+10€)</label>
+                            <input type="number" id="bonusLoad" value="0" class="w-full border p-2 rounded-lg text-sm" oninput="saveData(); calculatePlanner();">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t pt-4">
+                <h3 class="font-bold text-sm text-gray-700 mb-2">Бонусы за вождение</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500">Эко-балл (5.0 - 10.0)</label>
+                        <input type="number" step="0.1" id="bonusEco" value="0" placeholder="Например: 8.2" class="w-full border p-2 rounded-lg text-sm" oninput="saveData(); calculatePlanner();">
+                        <p class="text-[10px] text-gray-400 mt-0.5">5.0-6.5: +30€ | 6.6-7.5: +70€ | 7.6-10: +100€</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Использование круиза (%)</label>
+                        <input type="number" id="bonusCruise" value="0" placeholder="Например: 12" class="w-full border p-2 rounded-lg text-sm" oninput="saveData(); calculatePlanner();">
+                        <p class="text-[10px] text-gray-400 mt-0.5">≥ 9%: +20€</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Panel -->
+            <div id="totalPanel" class="bg-indigo-900 text-white p-5 rounded-2xl shadow-lg space-y-2 hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium opacity-90">Итого к выплате:</span>
+                    <span class="text-2xl font-black text-green-400"><span id="totalAmount">0</span> €</span>
+                </div>
+                <div class="flex items-center justify-between text-xs opacity-80">
+                    <span>Отработано дней: <b id="totalDays">0</b> дн.</span>
+                </div>
+                <div id="totalBreakdown" class="text-xs pt-2 border-t border-indigo-700 opacity-90 leading-relaxed"></div>
+            </div>
+
+            <!-- Calendar Section -->
+            <div class="border-t pt-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="font-bold text-gray-800 text-sm">Интерактивный календарь (выберите месяцы)</h2>
+                    <span class="text-xs text-gray-500">Клик по дню меняет тип (раб/отд)</span>
+                </div>
+                <div id="calendar" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-bans" class="calc-view p-4 hidden">
+        <div class="max-w-5xl mx-auto space-y-6">
+            
+            <!-- Real-time Status Check & GPS Location Banner -->
+            <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100 space-y-4">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <span>🚛</span> Запреты на движение грузовиков в Европе
+                        </h1>
+                        <p class="text-xs text-gray-500 mt-1">Данные сопоставлены по правилам TrafficBan.com</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        <button onclick="checkTomorrowBansAndNotify(true)" id="notifyBtn" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0">
+                            <span>🔔</span> Проверить запреты на завтра
+                        </button>
+                        <button onclick="detectGPSLocation(false)" id="gpsBtn" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0 hidden">
+                            <span>📍</span> Определить по GPS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GPS & Notifications Alert Box -->
+                <div id="gpsAlertBox" class="p-3 rounded-xl text-xs flex items-center justify-between gap-2 transition-all bg-blue-50 text-blue-800 border border-blue-200">
+                    <div class="flex items-center gap-2 font-semibold" id="gpsAlertText">
+                        <span>⏳ Автоматическое определение страны по GPS...</span>
+                    </div>
+                    <button onclick="closeGpsAlert()" class="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+                </div>
+
+                <!-- Live Route Status Badges Grid -->
+                <div class="flex flex-wrap gap-2 pt-1" id="routeStatusContainer">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Controls: Search, Multi-country route selection & Date/Period Selector -->
+            <div class="bg-white p-6 rounded-2xl shadow-md space-y-4">
+                <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+                    <!-- Search Input Field -->
+                    <div class="relative w-full lg:w-64">
+                        <input type="text" id="banSearchInput" oninput="filterBansBySearch()" placeholder="🔍 Поиск страны или правила..." class="w-full p-2.5 pl-3 border rounded-xl bg-gray-50 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <!-- Date presets and range picker -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="setBanPreset('today')" class="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold transition-colors">Сегодня</button>
+                        <button onclick="setBanPreset('week')" class="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors">Текущая неделя</button>
+                        <button onclick="setBanPreset('next_week')" class="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold transition-colors">След. неделя</button>
+                        <button onclick="setBanPreset('month')" class="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">Выбрать месяц</button>
+
+                        <div class="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border">
+                            <input type="date" id="banStartDate" onchange="handleCustomBanDates()" class="p-1 text-xs border rounded bg-white">
+                            <span class="text-xs text-gray-400">—</span>
+                            <input type="date" id="banEndDate" onchange="handleCustomBanDates()" class="p-1 text-xs border rounded bg-white">
+                        </div>
+                    </div>
+
+                    <div class="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl text-center shrink-0" id="banWeekRangeLabel">
+                        Период: -
+                    </div>
+                </div>
+
+                <!-- Country Tags Multi-Filter -->
+                <div class="space-y-2 pt-2 border-t">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-gray-700">Выберите страны маршрута (мульти-выбор):</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="selectAllCountries()" class="text-[11px] font-bold text-indigo-600 hover:underline">Выбрать все</button>
+                            <span class="text-gray-300">|</span>
+                            <button onclick="clearCountrySelection()" class="text-[11px] font-bold text-gray-500 hover:underline">Сбросить</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5" id="countryFilterContainer">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weekly Schedule Cards Grid -->
+            <div id="bansWeeklyGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Populated dynamically -->
+            </div>
+
+            <!-- Country Rules Summary Table -->
+            <div class="bg-white p-6 rounded-2xl shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">Справочник ограничений и исключений по странам</h2>
+                    <a href="https://trafficban.com" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium">
+                        Источник: trafficban.com ↗
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-700 border-b">
+                                <th class="p-2 font-bold">Страна</th>
+                                <th class="p-2 font-bold">Тоннаж</th>
+                                <th class="p-2 font-bold">Выходные / Праздники</th>
+                                <th class="p-2 font-bold">Ночные / Летние ограничения</th>
+                                <th class="p-2 font-bold">Основные исключения</th>
+                            </tr>
+                        </thead>
+                        <tbody id="countryRulesTableBody" class="divide-y divide-gray-100 text-gray-600">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const fuelTable = { 3: [16, 15], 4: [19, 18], 5: [28, 26], 6: [36, 34], 7: [44, 42], 8: [52, 50], 9: [60, 58], 10: [69, 64], 11: [78, 75], 12: [87, 83], 13: [96, 92], 14: [105, 101], 15: [115, 107], 16: [122, 118], 17: [130, 126], 18: [138, 134], 19: [146, 143], 20: [164, 154], 21: [172, 164], 22: [180, 175], 23: [188, 183], 24: [196, 191], 25: [216, 202], 26: [224, 217], 27: [233, 228], 28: [241, 239], 29: [250, 248], 30: [269, 252], 31: [276, 267], 32: [284, 277], 33: [291, 286], 34: [299, 295], 35: [322, 302], 36: [330, 314], 37: [339, 325], 38: [348, 335], 39: [356, 345], 40: [364, 355], 41: [373, 365], 42: [381, 375], 43: [389, 385], 44: [397, 395], 45: [405, 405], 46: [413, 415], 47: [421, 425], 48: [429, 435], 49: [437, 445], 50: [445, 455], 51: [453, 465], 52: [461, 475], 53: [469, 485], 54: [477, 495], 55: [485, 505], 56: [493, 515], 57: [501, 525], 58: [509, 535], 59: [517, 545], 60: [525, 555], 61: [533, 565], 62: [541, 575], 63: [549, 585], 64: [557, 595], 65: [565, 605], 66: [573, 615], 67: [581, 625], 68: [589, 635] };
+        let exceptions = JSON.parse(localStorage.getItem('exceptions') || '{}');
+        let selectedMonths = new Set(JSON.parse(localStorage.getItem('selectedMonths') || '[]'));
+        let monthRates = JSON.parse(localStorage.getItem('monthRates') || '{}');
+
+        // Comprehensive truck bans dataset
+        const countryBansData = [
+            {
+                code: 'DE', flag: '🇩🇪', name: 'Германия', weight: '>7.5т',
+                standard: 'Воскресенье и праздники: 00:00 – 22:00',
+                additional: 'Летний период (июль-авг): Суббота 07:00 – 20:00',
+                exemptions: 'Скоропортящиеся продукты (AТP), свежее молоко, мясо, рыбопродукты, комбинированные перевозки.',
+                bans: [
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 22:00' },
+                    { day: 6, title: 'Субботний летний запрет (июль-август)', times: '07:00 - 20:00' }
+                ]
+            },
+            {
+                code: 'FR', flag: '🇫🇷', name: 'Франция', weight: '>7.5т',
+                standard: 'Суббота 22:00 – Воскресенье 22:00',
+                additional: 'Перед праздниками с 22:00 накануне до 22:00 в день праздника',
+                exemptions: 'Скоропортящиеся грузы, животные, аварийные службы, медикаменты.',
+                bans: [
+                    { day: 6, title: 'Начало уикенд-запрета', times: '22:00 - 24:00' },
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 22:00' }
+                ]
+            },
+            {
+                code: 'AT', flag: '🇦🇹', name: 'Австрия', weight: '>7.5т',
+                standard: 'Суббота 15:00 – Воскресенье 22:00',
+                additional: 'Ночной запрет ежедневно: 22:00 – 05:00',
+                exemptions: 'Пищевые продукты, скот, почта, регулярные рейсы, комбинированные перевозки до 65 км.',
+                bans: [
+                    { day: 6, title: 'Субботний запрет', times: '15:00 - 24:00' },
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 22:00' }
+                ]
+            },
+            {
+                code: 'IT', flag: '🇮🇹', name: 'Италия', weight: '>7.5т',
+                standard: 'Воскресенье: 09:00 – 22:00 (летом 07:00 – 22:00)',
+                additional: 'Летние субботы: 08:00 – 16:00 / 08:00 – 22:00',
+                exemptions: 'Скоропортящиеся продукты, животные, топливо для АЗС, с/х продукция.',
+                bans: [
+                    { day: 0, title: 'Воскресный запрет', times: '09:00 - 22:00' },
+                    { day: 6, title: 'Субботний летний запрет', times: '08:00 - 16:00' }
+                ]
+            },
+            {
+                code: 'PL', flag: '🇵🇱', name: 'Польша', weight: '>12т',
+                standard: 'Праздники и накануне: 18:00 – 22:00 / 08:00 – 22:00',
+                additional: 'Летние каникулы: Пт 18-22, Сб 08-14, Вс 08-22',
+                exemptions: 'Скоропортящиеся грузы, живые животные, помощь при АВАРИЯХ.',
+                bans: [
+                    { day: 0, title: 'Воскресный летний/праздничный запрет', times: '08:00 - 22:00' },
+                    { day: 5, title: 'Пятничный летний запрет', times: '18:00 - 22:00' },
+                    { day: 6, title: 'Субботний летний запрет', times: '08:00 - 14:00' }
+                ]
+            },
+            {
+                code: 'CZ', flag: '🇨🇿', name: 'Чехия', weight: '>7.5т',
+                standard: 'Воскресенье и праздники: 13:00 – 22:00',
+                additional: 'Летний период (1 июля - 31 авг): Пт 17-21, Сб 07-13, Вс 13-22',
+                exemptions: 'Скоропортящиеся продукты, животные, опасные грузы (ADR) по согласованию.',
+                bans: [
+                    { day: 0, title: 'Воскресный запрет', times: '13:00 - 22:00' },
+                    { day: 5, title: 'Летняя пятница', times: '17:00 - 21:00' },
+                    { day: 6, title: 'Летняя суббота', times: '07:00 - 13:00' }
+                ]
+            },
+            {
+                code: 'SK', flag: '🇸🇰', name: 'Словакия', weight: '>7.5т',
+                standard: 'Воскресенье и праздники: 00:00 – 22:00',
+                additional: 'Летние субботы (1 июля - 31 авг): 07:00 – 19:00',
+                exemptions: 'Живые животные, продукты питания, гуманитарная помощь.',
+                bans: [
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 22:00' },
+                    { day: 6, title: 'Субботний летний запрет', times: '07:00 - 19:00' }
+                ]
+            },
+            {
+                code: 'CH', flag: '🇨🇭', name: 'Швейцария', weight: '>3.5т',
+                standard: 'Воскресенье и праздники: 00:00 – 24:00',
+                additional: 'Ночной запрет ежедневно: 22:00 – 05:00',
+                exemptions: 'Скоропортящиеся пищевые продукты, свежие цветы, медикаменты.',
+                bans: [
+                    { day: 0, title: 'Воскресный полный запрет', times: '00:00 - 24:00' },
+                    { day: 1, title: 'Ночной запрет', times: '22:00 - 05:00' },
+                    { day: 2, title: 'Ночной запрет', times: '22:00 - 05:00' },
+                    { day: 3, title: 'Ночной запрет', times: '22:00 - 05:00' },
+                    { day: 4, title: 'Ночной запрет', times: '22:00 - 05:00' },
+                    { day: 5, title: 'Ночной запрет', times: '22:00 - 05:00' },
+                    { day: 6, title: 'Ночной запрет', times: '22:00 - 05:00' }
+                ]
+            },
+            {
+                code: 'HU', flag: '🇭🇺', name: 'Венгрия', weight: '>7.5т',
+                standard: 'Суббота 22:00 – Воскресенье 22:00',
+                additional: 'Летом (1 июля - 31 авг): Суббота 15:00 – Воскресенье 22:00',
+                exemptions: 'Свежие продукты, живые животные, гуманитарные грузы.',
+                bans: [
+                    { day: 6, title: 'Субботний запрет', times: '22:00 - 24:00' },
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 22:00' }
+                ]
+            },
+            {
+                code: 'SI', flag: '🇸🇮', name: 'Словения', weight: '>7.5т',
+                standard: 'Воскресенье и праздники: 08:00 – 22:00',
+                additional: 'Летний период: Суббота 08:00 – 13:00 (на побережье 06:00 – 16:00)',
+                exemptions: 'Скоропортящиеся грузы, скот, медицинские средства.',
+                bans: [
+                    { day: 0, title: 'Воскресный запрет', times: '08:00 - 22:00' },
+                    { day: 6, title: 'Субботний летний запрет', times: '08:00 - 13:00' }
+                ]
+            },
+            {
+                code: 'LU', flag: '🇱🇺', name: 'Люксембург', weight: '>7.5т',
+                standard: 'Сб 21:30 (в сторону DE) / Сб 23:30 (в сторону FR) – Вс 21:45',
+                additional: 'Праздничные дни аналогично уикенду',
+                exemptions: 'Скоропортящиеся продукты, живые животные.',
+                bans: [
+                    { day: 6, title: 'Субботний вечерний запрет', times: '21:30 - 24:00' },
+                    { day: 0, title: 'Воскресный запрет', times: '00:00 - 21:45' }
+                ]
+            }
+        ];
+
+        // Multi-country selection route state
+        let selectedCountries = new Set(['DE', 'FR', 'LU']); // default initial route
+        let banStartDate = new Date();
+        let banEndDate = new Date();
+        let banSearchQuery = '';
+        let gpsAttemptedOnLoad = false;
+
+        const countryBoundingBoxes = [
+            { code: 'DE', minLat: 47.2, maxLat: 55.1, minLng: 5.8, maxLng: 15.0 },
+            { code: 'FR', minLat: 41.3, maxLat: 51.1, minLng: -5.1, maxLng: 9.6 },
+            { code: 'AT', minLat: 46.3, maxLat: 49.0, minLng: 9.5, maxLng: 17.2 },
+            { code: 'IT', minLat: 36.6, maxLat: 47.1, minLng: 6.6, maxLng: 18.5 },
+            { code: 'PL', minLat: 49.0, maxLat: 54.8, minLng: 14.1, maxLng: 24.1 },
+            { code: 'CZ', minLat: 48.5, maxLat: 51.1, minLng: 12.0, maxLng: 18.9 },
+            { code: 'SK', minLat: 47.7, maxLat: 49.6, minLng: 16.8, maxLng: 22.6 },
+            { code: 'CH', minLat: 45.8, maxLat: 47.8, minLng: 5.9, maxLng: 10.5 },
+            { code: 'HU', minLat: 45.7, maxLat: 48.6, minLng: 16.1, maxLng: 22.9 },
+            { code: 'SI', minLat: 45.4, maxLat: 46.9, minLng: 13.3, maxLng: 16.6 },
+            { code: 'LU', minLat: 49.4, maxLat: 50.2, minLng: 5.7, maxLng: 6.5 }
+        ];
+
+        // Notification function to check tomorrow's bans
+        function getTomorrowBansSummary() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowDayIndex = tomorrow.getDay();
+            const tomorrowDateStr = tomorrow.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+
+            let activeBansList = [];
+
+            selectedCountries.forEach(code => {
+                const country = countryBansData.find(c => c.code === code);
+                if (!country) return;
+
+                const bans = country.bans.filter(b => b.day === tomorrowDayIndex);
+                bans.forEach(b => {
+                    activeBansList.push(`${country.flag} ${country.name}: ${b.title} (${b.times})`);
+                });
+            });
+
+            return { tomorrowDateStr, activeBansList };
+        }
+
+        function checkTomorrowBansAndNotify(isManualClick = false) {
+            const { tomorrowDateStr, activeBansList } = getTomorrowBansSummary();
+
+            let title = `🚛 Запреты на завтра (${tomorrowDateStr})`;
+            let bodyText = '';
+
+            if (activeBansList.length > 0) {
+                bodyText = activeBansList.join('\n');
+            } else {
+                bodyText = '✅ На завтра ограничения движения по вашему маршруту отсутствуют!';
+            }
+
+            // Show alert box on page
+            showGpsAlert(`<b>${title}</b><br>${bodyText.replace(/\n/g, '<br>')}`, activeBansList.length > 0 ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200');
+
+            // Send System Web Notification if permitted
+            if ("Notification" in window) {
+                if (Notification.permission === "granted") {
+                    new Notification(title, {
+                        body: bodyText,
+                        icon: "https://cdn-icons-png.flaticon.com/512/2554/2554978.png"
+                    });
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            new Notification(title, {
+                                body: bodyText
+                            });
+                        }
+                    });
+                } else if (isManualClick) {
+                    alert(`Уведомления отключены в настройках вашего браузера.\n\nЗапреты на завтра (${tomorrowDateStr}):\n${bodyText}`);
+                }
+            }
+        }
+
+        function getBanDaysRange(startDate, endDate) {
+            const days = [];
+            const dayNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
+            let curr = new Date(startDate);
+            curr.setHours(0,0,0,0);
+            
+            const end = new Date(endDate);
+            end.setHours(23,59,59,999);
+
+            let maxCount = 0;
+            while (curr <= end && maxCount < 60) {
+                const dayIndex = curr.getDay();
+                days.push({
+                    date: new Date(curr),
+                    dateStr: curr.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+                    dayName: dayNames[dayIndex],
+                    dayIndex: dayIndex
+                });
+                curr.setDate(curr.getDate() + 1);
+                maxCount++;
+            }
+            return days;
+        }
+
+        function setBanPreset(type) {
+            const now = new Date();
+            now.setHours(0,0,0,0);
+
+            if (type === 'today') {
+                banStartDate = new Date(now);
+                banEndDate = new Date(now);
+            } else if (type === 'week') {
+                const day = now.getDay();
+                const diffToMon = now.getDate() - (day === 0 ? 6 : day - 1);
+                banStartDate = new Date(now.setDate(diffToMon));
+                banEndDate = new Date(now.setDate(diffToMon + 6));
+            } else if (type === 'next_week') {
+                const day = now.getDay();
+                const diffToMon = now.getDate() - (day === 0 ? 6 : day - 1) + 7;
+                banStartDate = new Date(now.setDate(diffToMon));
+                banEndDate = new Date(now.setDate(diffToMon + 6));
+            } else if (type === 'month') {
+                banStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                banEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            }
+
+            syncBanDateInputs();
+            renderWeeklySchedule();
+        }
+
+        function syncBanDateInputs() {
+            const startEl = document.getElementById('banStartDate');
+            const endEl = document.getElementById('banEndDate');
+            if (startEl && endEl) {
+                startEl.value = banStartDate.toISOString().split('T')[0];
+                endEl.value = banEndDate.toISOString().split('T')[0];
+            }
+        }
+
+        function handleCustomBanDates() {
+            const startVal = document.getElementById('banStartDate').value;
+            const endVal = document.getElementById('banEndDate').value;
+            if (startVal && endVal) {
+                banStartDate = new Date(startVal);
+                banEndDate = new Date(endVal);
+                if (banEndDate < banStartDate) {
+                    banEndDate = new Date(banStartDate);
+                    document.getElementById('banEndDate').value = startVal;
+                }
+                renderWeeklySchedule();
+            }
+        }
+
+        function toggleCountryFilter(code) {
+            if (selectedCountries.has(code)) {
+                selectedCountries.delete(code);
+            } else {
+                selectedCountries.add(code);
+            }
+            renderBans();
+        }
+
+        function selectAllCountries() {
+            countryBansData.forEach(c => selectedCountries.add(c.code));
+            renderBans();
+        }
+
+        function clearCountrySelection() {
+            selectedCountries.clear();
+            renderBans();
+        }
+
+        function renderCountryFilterPills() {
+            const container = document.getElementById('countryFilterContainer');
+            if (!container) return;
+
+            let html = '';
+            countryBansData.forEach(c => {
+                const isSelected = selectedCountries.has(c.code);
+                html += `<button onclick="toggleCountryFilter('${c.code}')" class="px-2.5 py-1 rounded-full text-xs font-bold transition-all ${isSelected ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">${c.flag} ${c.name}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function detectGPSLocation(isAuto = false) {
+            const gpsBtn = document.getElementById('gpsBtn');
+
+            if (!navigator.geolocation) {
+                showGpsAlert('❌ Геолокация не поддерживается вашим устройством.', 'bg-red-50 text-red-700 border-red-200');
+                if (gpsBtn) gpsBtn.classList.remove('hidden');
+                return;
+            }
+
+            if (!isAuto && gpsBtn) {
+                gpsBtn.innerHTML = '<span>⏳</span> Поиск GPS...';
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    let detectedCode = null;
+
+                    try {
+                        const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ru`);
+                        const data = await response.json();
+                        if (data && data.countryCode) {
+                            detectedCode = data.countryCode;
+                        }
+                    } catch (e) {
+                        console.log('BigDataCloud API timeout/error, trying fallback...');
+                    }
+
+                    if (!detectedCode) {
+                        try {
+                            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                            const data = await response.json();
+                            if (data && data.address && data.address.country_code) {
+                                detectedCode = data.address.country_code.toUpperCase();
+                            }
+                        } catch (e) {
+                            console.log('Nominatim API error, using bounding box fallback...');
+                        }
+                    }
+
+                    if (!detectedCode) {
+                        const matchBox = countryBoundingBoxes.find(b => lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng);
+                        if (matchBox) {
+                            detectedCode = matchBox.code;
+                        }
+                    }
+
+                    if (gpsBtn) {
+                        gpsBtn.innerHTML = '<span>📍</span> Определить по GPS';
+                        gpsBtn.classList.remove('hidden');
+                    }
+
+                    if (detectedCode) {
+                        const matchedCountry = countryBansData.find(c => c.code === detectedCode);
+                        if (matchedCountry) {
+                            selectedCountries.add(matchedCountry.code);
+                            showGpsAlert(`📍 Вы находитесь в стране: <b>${matchedCountry.flag} ${matchedCountry.name}</b>. Страна добавлена в список маршрута.`, 'bg-emerald-50 text-emerald-800 border-emerald-200');
+                        } else {
+                            showGpsAlert(`📍 Вы находитесь в коде <b>${detectedCode}</b>. В текущей базе нет специфических ограничений для данной страны.`, 'bg-blue-50 text-blue-800 border-blue-200');
+                        }
+                    } else {
+                        showGpsAlert(`📍 Координаты получены (${lat.toFixed(2)}, ${lng.toFixed(2)}), но не удалось определить страну.`, 'bg-yellow-50 text-yellow-800 border-yellow-200');
+                    }
+
+                    renderBans();
+                },
+                (error) => {
+                    if (gpsBtn) {
+                        gpsBtn.innerHTML = '<span>📍</span> Определить по GPS';
+                        gpsBtn.classList.remove('hidden');
+                    }
+                    let errorMsg = 'Не удалось автоматически определить геолокацию.';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errorMsg = 'Доступ к геолокации запрещен. Нажмите кнопку ниже, чтобы попробовать снова.';
+                    }
+                    showGpsAlert(`⚠️ ${errorMsg}`, 'bg-amber-50 text-amber-800 border-amber-200');
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
+
+        function autoDetectGPSOnLoad() {
+            if (!gpsAttemptedOnLoad) {
+                gpsAttemptedOnLoad = true;
+                detectGPSLocation(true);
+            }
+        }
+
+        function showGpsAlert(msg, colorClass) {
+            const alertBox = document.getElementById('gpsAlertBox');
+            const alertText = document.getElementById('gpsAlertText');
+            if(!alertBox || !alertText) return;
+            
+            alertText.innerHTML = msg;
+            alertBox.className = `p-3 rounded-xl text-xs flex items-center justify-between gap-2 border ${colorClass}`;
+            alertBox.classList.remove('hidden');
+        }
+
+        function closeGpsAlert() {
+            const alertBox = document.getElementById('gpsAlertBox');
+            if(alertBox) alertBox.classList.add('hidden');
+        }
+
+        function filterBansBySearch() {
+            const input = document.getElementById('banSearchInput');
+            banSearchQuery = (input?.value || '').trim().toLowerCase();
+            renderWeeklySchedule();
+            renderCountryRulesTable();
+        }
+
+        function checkNowStatus() {
+            const container = document.getElementById('routeStatusContainer');
+            if (!container) return;
+
+            if (selectedCountries.size === 0) {
+                container.innerHTML = `<span class="text-xs text-gray-400 italic">Страны не выбраны. Выберите страны маршрута выше.</span>`;
+                return;
+            }
+
+            const now = new Date();
+            const currentDay = now.getDay();
+            const currentHour = now.getHours();
+
+            let html = '';
+
+            selectedCountries.forEach(code => {
+                const country = countryBansData.find(c => c.code === code);
+                if (!country) return;
+
+                const todayBans = country.bans.filter(b => b.day === currentDay);
+                let isBanned = false;
+                let currentBanText = '';
+
+                todayBans.forEach(ban => {
+                    if (ban.times.includes('00:00 - 22:00') && currentHour >= 0 && currentHour < 22) {
+                        isBanned = true; currentBanText = ban.times;
+                    } else if (ban.times.includes('00:00 - 24:00')) {
+                        isBanned = true; currentBanText = ban.times;
+                    } else if (ban.times.includes('15:00 - 24:00') && currentHour >= 15) {
+                        isBanned = true; currentBanText = ban.times;
+                    } else if (ban.times.includes('22:00 - 24:00') && currentHour >= 22) {
+                        isBanned = true; currentBanText = ban.times;
+                    } else if (ban.times.includes('08:00 - 22:00') && currentHour >= 8 && currentHour < 22) {
+                        isBanned = true; currentBanText = ban.times;
+                    } else if (ban.times.includes('13:00 - 22:00') && currentHour >= 13 && currentHour < 22) {
+                        isBanned = true; currentBanText = ban.times;
+                    }
+                });
+
+                if (isBanned) {
+                    html += `
+                        <div class="px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 text-white shadow-sm flex items-center gap-1.5">
+                            <span>${country.flag} ${country.name}: 🛑 ЗАПРЕТ (${currentBanText})</span>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-sm flex items-center gap-1.5">
+                            <span>${country.flag} ${country.name}: ✅ РАЗРЕШЕНО</span>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderWeeklySchedule() {
+            const grid = document.getElementById('bansWeeklyGrid');
+            const label = document.getElementById('banWeekRangeLabel');
+            if(!grid || !label) return;
+
+            const daysRange = getBanDaysRange(banStartDate, banEndDate);
+            const startStr = banStartDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+            const endStr = banEndDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+            
+            label.innerText = `Период: ${startStr} — ${endStr} (${daysRange.length} дн.)`;
+
+            const filteredCountries = countryBansData.filter(c => {
+                const matchRouteFilter = selectedCountries.size === 0 || selectedCountries.has(c.code);
+                const matchSearch = !banSearchQuery || 
+                    c.name.toLowerCase().includes(banSearchQuery) || 
+                    c.code.toLowerCase().includes(banSearchQuery) ||
+                    c.standard.toLowerCase().includes(banSearchQuery) ||
+                    c.additional.toLowerCase().includes(banSearchQuery) ||
+                    c.exemptions.toLowerCase().includes(banSearchQuery);
+                return matchRouteFilter && matchSearch;
+            });
+
+            grid.innerHTML = '';
+
+            daysRange.forEach(dayObj => {
+                const dayCard = document.createElement('div');
+                const isToday = new Date().toDateString() === dayObj.date.toDateString();
+                
+                dayCard.className = `bg-white rounded-2xl p-4 shadow-sm border ${isToday ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'}`;
+
+                let dayHeader = `
+                    <div class="flex items-center justify-between pb-2 mb-3 border-b">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-base ${isToday ? 'text-blue-600' : 'text-gray-800'}">${dayObj.dayName}</span>
+                            <span class="text-xs text-gray-500">${dayObj.dateStr}</span>
+                        </div>
+                        ${isToday ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">Сегодня</span>' : ''}
+                    </div>
+                `;
+
+                let countryListHtml = '<div class="space-y-2 text-xs">';
+                let hasBansCount = 0;
+
+                filteredCountries.forEach(country => {
+                    const activeBans = country.bans.filter(b => b.day === dayObj.dayIndex);
+                    if (activeBans.length > 0) {
+                        hasBansCount++;
+                        activeBans.forEach(ban => {
+                            countryListHtml += `
+                                <div class="p-2 rounded-xl bg-red-50 border border-red-100 flex items-start justify-between gap-1">
+                                    <div>
+                                        <div class="font-bold text-red-900 flex items-center gap-1">
+                                            <span>${country.flag}</span> ${country.name}
+                                            <span class="text-[10px] bg-red-200 text-red-800 px-1 rounded font-normal">${country.weight}</span>
+                                        </div>
+                                        <div class="text-[11px] text-red-700 font-semibold mt-0.5">${ban.title}</div>
+                                    </div>
+                                    <span class="px-2 py-1 bg-red-600 text-white font-bold rounded-lg text-[10px] shrink-0">${ban.times}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                });
+
+                if (hasBansCount === 0) {
+                    countryListHtml += `
+                        <div class="py-6 text-center text-gray-400 text-xs">
+                            <span class="text-green-500 font-bold block mb-1">✓ Всё свободно</span>
+                            Ограничений на движение не обнаружено
+                        </div>
+                    `;
+                }
+
+                countryListHtml += '</div>';
+
+                dayCard.innerHTML = dayHeader + countryListHtml;
+                grid.appendChild(dayCard);
+            });
+        }
+
+        function renderCountryRulesTable() {
+            const tbody = document.getElementById('countryRulesTableBody');
+            if(!tbody) return;
+
+            let html = '';
+            countryBansData.forEach(c => {
+                const matchSearch = !banSearchQuery || 
+                    c.name.toLowerCase().includes(banSearchQuery) || 
+                    c.code.toLowerCase().includes(banSearchQuery) ||
+                    c.standard.toLowerCase().includes(banSearchQuery) ||
+                    c.additional.toLowerCase().includes(banSearchQuery) ||
+                    c.exemptions.toLowerCase().includes(banSearchQuery);
+
+                if(!matchSearch) return;
+
+                html += `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="p-2.5 font-bold text-gray-800 whitespace-nowrap">
+                            <span class="mr-1">${c.flag}</span> ${c.name}
+                        </td>
+                        <td class="p-2.5"><span class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-700 font-semibold">${c.weight}</span></td>
+                        <td class="p-2.5 font-medium text-red-700">${c.standard}</td>
+                        <td class="p-2.5 text-gray-600">${c.additional}</td>
+                        <td class="p-2.5 text-gray-500 italic">${c.exemptions}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderBans() {
+            renderCountryFilterPills();
+            checkNowStatus();
+            renderWeeklySchedule();
+            renderCountryRulesTable();
+        }
+
+        function switchTab(t) {
+            document.querySelectorAll('.calc-view').forEach(v => {
+                v.classList.remove('active');
+                v.classList.add('hidden');
+            });
+            
+            const activeView = document.getElementById('view-' + t);
+            if (activeView) {
+                activeView.classList.add('active');
+                activeView.classList.remove('hidden');
+            }
+            
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+            const activeBtn = document.getElementById('btn-' + t);
+            if (activeBtn) {
+                activeBtn.classList.add('active-tab');
+            }
+            
+            if (t === 'bans') {
+                renderBans();
+                autoDetectGPSOnLoad();
+            }
+        }
+
+        function loadEverything() {
+            const saved = JSON.parse(localStorage.getItem('driverData') || '{}');
+            Object.keys(saved).forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = saved[id]; });
+            
+            setBanPreset('week');
+            calculate(); 
+            calculatePlanner(); 
+            renderBans();
+            autoDetectGPSOnLoad();
+        }
+
+        function saveData() {
+            const data = {}; document.querySelectorAll('input').forEach(i => data[i.id] = i.value);
+            localStorage.setItem('driverData', JSON.stringify(data));
+            localStorage.setItem('exceptions', JSON.stringify(exceptions));
+            localStorage.setItem('selectedMonths', JSON.stringify([...selectedMonths]));
+            localStorage.setItem('monthRates', JSON.stringify(monthRates));
+        }
+
+        function calculate() {
+            let sF = +document.getElementById('startFuel').value || 0;
+            let ref = +document.getElementById('totalRefuel').value || 0;
+            let eF = +document.getElementById('endFuel').value || 0;
+            let sM = +document.getElementById('startMileage').value || 0;
+            let eM = +document.getElementById('endMileage').value || 0;
+            let norm = +document.getElementById('norm').value || 25;
+            let secret = +document.getElementById('secretValue').value || 0;
+            let dist = eM - sM;
+            let spent = (sF + ref) - eF;
+            document.getElementById('totalMileage').innerText = dist;
+            document.getElementById('spentFuel').innerText = spent.toFixed(1);
+            document.getElementById('consumption').innerText = (dist > 0 ? (spent / dist * 100) : 0).toFixed(2);
+            document.getElementById('secretResult').innerText = (dist > 0 ? ((spent + secret) / dist * 100) : 0).toFixed(2);
+            let econ = (norm * (dist / 100) - spent);
+            document.getElementById('economy').innerText = econ.toFixed(1);
+            document.getElementById('economy').style.color = econ >= 0 ? '#15803d' : '#b91c1c';
+        }
+
+        function calculateFromCm() {
+            let lc = +document.getElementById('leftCm').value, rc = +document.getElementById('rightCm').value;
+            let total = (fuelTable[lc]?.[0] || 0) + (fuelTable[rc]?.[1] || 0);
+            document.getElementById('cmResult').innerText = total;
+            document.getElementById('endFuel').value = total;
+            calculate();
+        }
+
+        function calculateFixed(h, btnId) {
+            document.querySelectorAll('.pause-btn').forEach(btn => btn.classList.remove('active-pause'));
+            document.getElementById(btnId).classList.add('active-pause');
+            const startVal = document.getElementById('time-start').value;
+            if(!startVal) { 
+                const res = document.getElementById('res-fixed');
+                res.innerHTML = '<p class="text-red-600 font-bold">Пожалуйста, выберите время начала!</p>';
+                res.classList.remove('hidden');
+                return; 
+            }
+            const startD = new Date(startVal);
+            showRes('res-fixed', startD, new Date(startD.getTime() + h*3600000), h);
+        }
+
+        function calculateCustom() { 
+            const startVal = document.getElementById('custom-start').value;
+            const endVal = document.getElementById('custom-end').value;
+            if (!startVal || !endVal) { 
+                const res = document.getElementById('res-custom');
+                res.innerHTML = '<p class="text-red-600 font-bold">Пожалуйста, выберите обе даты!</p>';
+                res.classList.remove('hidden');
+                return; 
+            }
+            const startD = new Date(startVal), endD = new Date(endVal);
+            showRes('res-custom', startD, endD, (endD - startD)/3600000); 
+        }
+
+        function showRes(id, s, e, dur) {
+            const d = document.getElementById(id);
+            d.innerHTML = `<p><b>Начало:</b> ${s.toLocaleString()}</p><p><b>Конец:</b> ${e.toLocaleString()}</p><p><b>Длительность:</b> ${Math.floor(dur)} ч ${Math.round((dur%1)*60)} мин</p>`;
+            d.classList.remove('hidden');
+        }
+
+        function handleDateChange() {
+            const startStr = document.getElementById('startDate').value;
+            const endStr = document.getElementById('endDate').value;
+            if (startStr && endStr) {
+                const start = new Date(startStr);
+                const end = new Date(endStr);
+                if (end >= start) {
+                    const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+                    if (monthsDiff > 0) {
+                        document.getElementById('monthsCount').value = monthsDiff;
+                    }
+                }
+            }
+            saveData();
+            calculatePlanner();
+        }
+
+        function updateMonthRate(monthKey, value) {
+            if (value === '' || isNaN(value)) {
+                delete monthRates[monthKey];
+            } else {
+                monthRates[monthKey] = parseFloat(value);
+            }
+            saveData();
+            calculatePlanner();
+        }
+
+        function calculatePlanner() {
+            const startStr = document.getElementById('startDate').value;
+            if(!startStr) return;
+            
+            const start = new Date(startStr); 
+            start.setHours(0,0,0,0);
+
+            const endStr = document.getElementById('endDate').value;
+            let endDateLimit = null;
+            if (endStr) {
+                endDateLimit = new Date(endStr);
+                endDateLimit.setHours(23,59,59,999);
+                
+                if (endDateLimit >= start) {
+                    const monthsDiff = (endDateLimit.getFullYear() - start.getFullYear()) * 12 + (endDateLimit.getMonth() - start.getMonth()) + 1;
+                    if (monthsDiff > 0) {
+                        document.getElementById('monthsCount').value = monthsDiff;
+                    }
+                }
+            }
+
+            const defaultDailyPay = +document.getElementById('dailyPay').value || 0;
+            const loadCount = +document.getElementById('bonusLoad').value || 0;
+            const ecoScore = +document.getElementById('bonusEco').value || 0;
+            const cruiseScore = +document.getElementById('bonusCruise').value || 0;
+            
+            const workW = +document.getElementById('workWeeks').value || 0;
+            const vacW = +document.getElementById('vacationWeeks').value || 0;
+            const months = +document.getElementById('monthsCount').value || 1;
+            const container = document.getElementById('calendar'); 
+            if(!container) return;
+            container.innerHTML = '';
+            
+            let totalWorkDays = 0;
+            let totalSalaryFromMonths = 0;
+            let cycleDays = (workW + vacW) * 7;
+            if (cycleDays <= 0) cycleDays = 7;
+            
+            for(let m=0; m<months; m++) {
+                let disp = new Date(start.getFullYear(), start.getMonth()+m, 1);
+                let monthKey = `${disp.getFullYear()}-${String(disp.getMonth()+1).padStart(2,'0')}`;
+                let currentMonthRate = monthRates[monthKey] !== undefined ? monthRates[monthKey] : defaultDailyPay;
+
+                let firstDayOfWeek = disp.getDay();
+                let normalizedDay = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+                let workD = 0;
+                let days = new Date(disp.getFullYear(), disp.getMonth()+1, 0).getDate();
+                
+                const card = document.createElement('div'); 
+                card.className = `month-card p-3 border rounded-lg ${selectedMonths.has(m) ? 'selected' : ''}`;
+                const grid = document.createElement('div'); 
+                grid.className = "grid grid-cols-7 gap-1";
+                
+                for(let i=0; i<normalizedDay; i++) grid.appendChild(document.createElement('div'));
+                
+                for(let d=1; d<=days; d++) {
+                    let cur = new Date(disp.getFullYear(), disp.getMonth(), d);
+                    cur.setHours(12,0,0,0);
+                    
+                    let isOutOfRange = false;
+                    if (cur < start) isOutOfRange = true;
+                    if (endDateLimit && cur > endDateLimit) isOutOfRange = true;
+
+                    let key = cur.toISOString().split('T')[0];
+                    let diff = Math.floor((cur - start)/(86400000));
+                    let type = 'vacation';
+                    if (workW > 0) {
+                        type = ((diff % cycleDays + cycleDays) % cycleDays < workW*7) ? 'work' : 'vacation';
+                    }
+                    if(exceptions[key]) type = exceptions[key];
+                    
+                    const cell = document.createElement('div');
+                    if (isOutOfRange) {
+                        cell.className = `day-cell out-range-day`;
+                        cell.innerText = d;
+                    } else {
+                        if(type === 'work') workD++;
+                        cell.className = `day-cell ${type === 'work' ? 'work-day' : 'vacation-day'}`;
+                        cell.innerText = d;
+                        cell.onclick = (e) => { 
+                            e.stopPropagation(); 
+                            exceptions[key] = type === 'work' ? 'vacation' : 'work'; 
+                            calculatePlanner(); 
+                        };
+                    }
+                    grid.appendChild(cell);
+                }
+                
+                const monthSalary = workD * currentMonthRate;
+
+                if(selectedMonths.has(m)) {
+                    totalWorkDays += workD;
+                    totalSalaryFromMonths += monthSalary;
+                }
+
+                card.onclick = () => { 
+                    if(selectedMonths.has(m)) selectedMonths.delete(m); 
+                    else selectedMonths.add(m); 
+                    calculatePlanner(); 
+                };
+                
+                card.innerHTML = `
+                    <h2 class="font-bold text-center text-gray-800 mb-1">${disp.toLocaleString('ru',{month:'long',year:'numeric'})}</h2>
+                    <div class="flex items-center justify-center gap-2 mb-2 text-xs" onclick="event.stopPropagation()">
+                        <label class="text-gray-600 font-medium">Ставка (€/день):</label>
+                        <input type="number" value="${currentMonthRate}" onchange="updateMonthRate('${monthKey}', this.value)" onclick="event.stopPropagation()" oninput="event.stopPropagation()" class="w-20 p-1 border rounded text-center font-bold text-indigo-600 bg-white">
+                    </div>
+                    <p class="text-center text-sm font-semibold mb-2">${workD} раб. дней / ${monthSalary.toLocaleString()}€</p>
+                `;
+                card.appendChild(grid); 
+                container.appendChild(card);
+            }
+            
+            const salarySum = totalSalaryFromMonths;
+            const bonusLoadSum = loadCount * 10;
+            let bonusEcoSum = 0;
+            if (ecoScore >= 5.0 && ecoScore <= 6.5) bonusEcoSum = 30;
+            else if (ecoScore >= 6.6 && ecoScore <= 7.5) bonusEcoSum = 70;
+            else if (ecoScore >= 7.6 && ecoScore <= 10) bonusEcoSum = 100;
+            
+            const bonusCruiseSum = (cruiseScore >= 9) ? 20 : 0;
+            const totalSum = salarySum + bonusLoadSum + bonusEcoSum + bonusCruiseSum;
+            
+            const totalAmtEl = document.getElementById('totalAmount');
+            if(totalAmtEl) totalAmtEl.innerText = totalSum.toLocaleString();
+            
+            const totalDaysEl = document.getElementById('totalDays');
+            if(totalDaysEl) totalDaysEl.innerText = totalWorkDays;
+            
+            const totalBdEl = document.getElementById('totalBreakdown');
+            if(totalBdEl) {
+                totalBdEl.innerHTML = 
+                    `Зарплата за дни (${totalWorkDays} раб. дн.): ${salarySum.toLocaleString()}€ + Бонусы: ${(bonusLoadSum + bonusEcoSum + bonusCruiseSum).toLocaleString()}€<br>` +
+                    `<span class="text-xs text-gray-300">(Загрузки: ${bonusLoadSum}€, Эко: ${bonusEcoSum}€, Круиз: ${bonusCruiseSum}€)</span>`;
+            }
+            
+            const totalPanelEl = document.getElementById('totalPanel');
+            if(totalPanelEl) totalPanelEl.classList.toggle('hidden', selectedMonths.size === 0);
+        }
+    </script>
+</body>
+</html>
