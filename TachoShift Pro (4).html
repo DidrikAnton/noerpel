@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TachoShift Pro - Цифровой Тахограф & Учёт Смен (ЕС 561/2006)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- jsPDF & html2canvas Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        volvoBg: '#0F1218',
+                        volvoCard: '#181E29',
+                        volvoCardHover: '#202837',
+                        volvoCyan: '#00D1FF',
+                        volvoGreen: '#10B981',
+                        volvoAmber: '#F59E0B',
+                        volvoRed: '#EF4444',
+                        volvoBorder: 'rgba(255, 255, 255, 0.08)'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0F1218; color: #E2E8F0; }
+        .volvo-card { background: #181E29; border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+        .volvo-tab { transition: all 0.2s ease; cursor: pointer; }
+        .volvo-tab.active { color: #00D1FF; border-bottom: 2px solid #00D1FF; }
+        .volvo-btn-primary { background: linear-gradient(135deg, #00D1FF 0%, #0088FF 100%); color: #0B0E14; font-weight: 700; transition: all 0.2s; cursor: pointer; }
+        .volvo-btn-primary:hover { opacity: 0.9; box-shadow: 0 0 15px rgba(0, 209, 255, 0.4); }
+        .volvo-btn-danger { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; font-weight: 700; transition: all 0.2s; cursor: pointer; }
+        .volvo-btn-danger:hover { opacity: 0.9; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .pause-milestone { transition: all 0.3s ease; }
+        .pause-milestone.active { border-color: #00D1FF; background: rgba(0, 209, 255, 0.1); }
+        .pause-milestone.passed { border-color: #10B981; background: rgba(16, 185, 129, 0.1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0F1218; }
+        ::-webkit-scrollbar-thumb { background: #2A3446; border-radius: 3px; }
+        @keyframes pulse-cyan {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 209, 255, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(0, 209, 255, 0); }
+        }
+        .pulse-active { animation: pulse-cyan 2s infinite; }
+        .flag-btn { transition: all 0.2s ease; }
+        .flag-btn.selected { border-color: #00D1FF; background: rgba(0, 209, 255, 0.2); transform: scale(1.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="h-full flex flex-col antialiased overflow-hidden">
+
+    <header class="bg-[#141822] border-b border-white/10 px-4 py-3 flex flex-wrap justify-between items-center gap-3 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-br from-cyan-400 to-blue-600 text-[#0B0E14] p-2 rounded-xl font-black flex items-center justify-center shadow-lg">
+                <i class="fa-solid fa-truck text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-2">
+                    TACHOSHIFT PRO <span class="text-cyan-400 font-light text-xs bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/30">ЕС 561/2006</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">Учёт смен, визуализация отдыха & Trafficban</p>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex items-center space-x-1 sm:space-x-6">
+            <button onclick="switchTab('daily')" id="tabBtn_daily" class="volvo-tab active pb-1 px-2 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-clock text-xs"></i> Суточ.
+            </button>
+            <button onclick="switchTab('weekly')" id="tabBtn_weekly" class="volvo-tab pb-1 px-2 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar-days text-xs"></i> Ежедневно
+            </button>
+            <button onclick="switchTab('history')" id="tabBtn_history" class="volvo-tab pb-1 px-2 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check text-xs"></i> Свед.
+            </button>
+        </div>
+
+        <!-- Action Tools -->
+        <div class="flex items-center space-x-2">
+            <button onclick="downloadHtmlFile()" title="Скачать HTML" class="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-90 rounded-xl text-slate-950 font-bold text-xs transition border border-white/5 flex items-center gap-1 shadow-lg cursor-pointer">
+                <i class="fa-solid fa-file-arrow-down"></i> <span class="hidden md:inline">Скачать HTML</span>
+            </button>
+            <button onclick="exportData()" title="Экспорт JSON" class="p-2 bg-[#202837] hover:bg-slate-700 rounded-xl text-cyan-400 text-xs transition border border-white/5 flex items-center gap-1 cursor-pointer">
+                <i class="fa-solid fa-download"></i> <span class="hidden md:inline">Экспорт</span>
+            </button>
+            <label title="Импорт JSON" class="p-2 bg-[#202837] hover:bg-slate-700 rounded-xl text-emerald-400 text-xs transition border border-white/5 flex items-center gap-1 cursor-pointer">
+                <i class="fa-solid fa-upload"></i> <span class="hidden md:inline">Импорт</span>
+                <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
+            </label>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 max-w-7xl w-full mx-auto space-y-4">
+
+        <!-- TAB 1: DAILY VIEW (Суточ.) -->
+        <div id="view_daily" class="space-y-4">
+            
+            <!-- Shift Status & Action Card -->
+            <div class="volvo-card rounded-2xl p-4 sm:p-5 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                <!-- Active Shift Panel -->
+                <div id="activeShiftSection" class="hidden space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-white/10">
+                        <div class="flex items-center space-x-3">
+                            <span class="relative flex h-3.5 w-3.5">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                            </span>
+                            <div>
+                                <span class="text-[11px] text-emerald-400 font-bold uppercase tracking-wider">Смена активна (Вождение / Работа)</span>
+                                <div class="text-sm sm:text-base font-bold text-white flex items-center gap-2 mt-0.5">
+                                    Страна откр.: <span id="activeCountryBadge" class="bg-[#0F1218] text-cyan-300 px-2 py-0.5 rounded text-xs border border-cyan-500/30 font-mono">--</span>
+                                    Открыта: <span id="activeStartTime" class="font-mono text-slate-200">--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-[#0F1218] px-3.5 py-2 rounded-xl border border-white/10">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block uppercase">Нач. одометр:</span>
+                                <span id="activeStartOdo" class="font-mono font-bold text-slate-200 text-xs">--</span>
+                            </div>
+                            <div class="border-l border-white/10 pl-3">
+                                <span class="text-[10px] text-slate-400 block uppercase">В пути:</span>
+                                <span id="activeElapsedTime" class="font-mono font-bold text-cyan-400 text-sm">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-globe text-cyan-400"></i> Страна закрытия смены:
+                            </label>
+                            <select id="closeCountrySelect" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                <option value="DE" selected>🇩🇪 Германия (DE)</option>
+                                <option value="PL">🇵🇱 Польша (PL)</option>
+                                <option value="FR">🇫🇷 Франция (FR)</option>
+                                <option value="LT">🇱🇹 Литва (LT)</option>
+                                <option value="ES">🇪🇸 Испания (ES)</option>
+                                <option value="IT">🇮🇹 Италия (IT)</option>
+                                <option value="BE">🇧🇪 Бельгия (BE)</option>
+                                <option value="NL">🇳🇱 Нидерланды (NL)</option>
+                                <option value="AT">🇦🇹 Австрия (AT)</option>
+                                <option value="CZ">🇨🇿 Чехия (CZ)</option>
+                                <option value="SK">🇸🇰 Словакия (SK)</option>
+                                <option value="HU">🇭🇺 Венгрия (HU)</option>
+                                <option value="RO">🇷🇴 Румыния (RO)</option>
+                                <option value="BG">🇧🇬 Болгария (BG)</option>
+                                <option value="DK">🇩🇰 Дания (DK)</option>
+                                <option value="SE">🇸🇪 Швеция (SE)</option>
+                                <option value="FI">🇫🇮 Финляндия (FI)</option>
+                                <option value="EE">🇪🇪 Эстония (EE)</option>
+                                <option value="LV">🇱🇻 Латвия (LV)</option>
+                                <option value="PT">🇵🇹 Португалия (PT)</option>
+                                <option value="IE">🇮🇪 Ирландия (IE)</option>
+                                <option value="GB">🇬🇧 Великобритания (GB)</option>
+                                <option value="CH">🇨🇭 Швейцария (CH)</option>
+                                <option value="NO">🇳🇴 Норвегия (NO)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge text-cyan-400"></i> Конечный километраж:
+                            </label>
+                            <input type="number" id="closeOdometerInput" placeholder="Например: 153700" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono text-sm">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="closeShift()" id="closeShiftBtn" class="w-full volvo-btn-danger py-3 px-4 rounded-xl text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer">
+                                <i class="fa-solid fa-stopwatch text-base"></i>
+                                <span>Закрыть смену</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inactive Shift Panel (Ready to Open) -->
+                <div id="inactiveShiftSection" class="space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-white/10">
+                        <div>
+                            <span class="text-[11px] text-cyan-400 font-bold uppercase tracking-wider">TachoShift Console</span>
+                            <h2 class="text-base sm:text-lg font-bold text-white mt-0.5">Смена закрыта. Находитесь на паузе.</h2>
+                        </div>
+                        <div class="text-[11px] text-slate-400 bg-[#0F1218] px-3 py-1 rounded-xl border border-white/10 flex items-center gap-1.5">
+                            <i class="fa-solid fa-shield-halved text-cyan-400"></i> Регламент ЕС 561/2006
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-road text-cyan-400"></i> Начальный километраж:
+                            </label>
+                            <input type="number" id="openOdometerInput" placeholder="Например: 153700" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono text-sm">
+                            <p class="text-[10px] text-slate-400 mt-1">Автоподстановка с прошлой смены.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-globe text-cyan-400"></i> Страна открытия смены:
+                            </label>
+                            <div class="flex space-x-2">
+                                <select id="openCountrySelect" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-500">
+                                    <option value="DE" selected>🇩🇪 Германия (DE)</option>
+                                    <option value="PL">🇵🇱 Польша (PL)</option>
+                                    <option value="FR">🇫🇷 Франция (FR)</option>
+                                    <option value="LT">🇱🇹 Литва (LT)</option>
+                                    <option value="ES">🇪🇸 Испания (ES)</option>
+                                    <option value="IT">🇮🇹 Италия (IT)</option>
+                                    <option value="BE">🇧🇪 Бельгия (BE)</option>
+                                    <option value="NL">🇳🇱 Нидерланды (NL)</option>
+                                    <option value="AT">🇦🇹 Австрия (AT)</option>
+                                    <option value="CZ">🇨🇿 Чехия (CZ)</option>
+                                    <option value="SK">🇸🇰 Словакия (SK)</option>
+                                    <option value="HU">🇭🇺 Венгрия (HU)</option>
+                                    <option value="RO">🇷🇴 Румыния (RO)</option>
+                                    <option value="BG">🇧🇬 Болгария (BG)</option>
+                                    <option value="DK">🇩🇰 Дания (DK)</option>
+                                    <option value="SE">🇸🇪 Швеция (SE)</option>
+                                    <option value="FI">🇫🇮 Финляндия (FI)</option>
+                                    <option value="EE">🇪🇪 Эстония (EE)</option>
+                                    <option value="LV">🇱🇻 Латвия (LV)</option>
+                                    <option value="PT">🇵🇹 Португалия (PT)</option>
+                                    <option value="IE">🇮🇪 Ирландия (IE)</option>
+                                    <option value="GB">🇬🇧 Великобритания (GB)</option>
+                                    <option value="CH">🇨🇭 Швейцария (CH)</option>
+                                    <option value="NO">🇳🇴 Норвегия (NO)</option>
+                                </select>
+                                <button type="button" onclick="detectCountryAuto()" class="px-3.5 bg-[#202837] hover:bg-slate-700 rounded-xl text-xs text-cyan-300 border border-white/5 transition flex items-center gap-1 whitespace-nowrap shadow cursor-pointer" title="GPS Определение">
+                                    <i class="fa-solid fa-location-crosshairs text-cyan-400"></i> GPS
+                                </button>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mt-2">
+                                <span onclick="setCountryPreset('DE')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇩🇪 DE</span>
+                                <span onclick="setCountryPreset('PL')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇵🇱 PL</span>
+                                <span onclick="setCountryPreset('FR')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇫🇷 FR</span>
+                                <span onclick="setCountryPreset('LT')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇱🇹 LT</span>
+                                <span onclick="setCountryPreset('ES')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇪🇸 ES</span>
+                                <span onclick="setCountryPreset('IT')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇮🇹 IT</span>
+                                <span onclick="setCountryPreset('BE')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇧🇪 BE</span>
+                                <span onclick="setCountryPreset('NL')" class="cursor-pointer bg-[#0F1218] hover:bg-slate-800 px-2 py-0.5 rounded text-[10px] text-cyan-300 border border-white/5 font-mono">🇳🇱 NL</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex justify-end">
+                        <button onclick="requestOpenShiftWithTrafficban()" class="w-full sm:w-auto volvo-btn-primary py-3.5 px-8 rounded-xl text-sm flex items-center justify-center space-x-2 shadow-xl cursor-pointer">
+                            <i class="fa-solid fa-play text-xs"></i>
+                            <span>Открыть смену (Начать работу)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAUSE GRAPHICAL VISUALIZATION CARD -->
+            <div id="pauseVisualizationCard" class="volvo-card rounded-2xl p-5 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-white/10">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-bed text-cyan-400"></i>
+                            <span>Графическая визуализация текущей паузы отдыха</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Отслеживание этапов пауз: 9ч, 11ч, 24ч (с компенсацией) и 45ч в реальном времени</p>
+                    </div>
+                    <div id="livePauseTimeBadge" class="bg-[#0F1218] border border-cyan-500/30 px-3 py-1 rounded-xl font-mono text-cyan-400 font-bold text-sm">
+                        Пауза: 00ч 00мин
+                    </div>
+                </div>
+
+                <!-- Visual Timeline Milestones Bar -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-mono text-slate-400 mb-1">
+                        <span>Начало паузы: <strong id="pauseStartTimeText" class="text-white">--:--</strong></span>
+                        <span id="pauseTotalDurationText" class="text-emerald-400 font-bold">0ч 00мин</span>
+                    </div>
+
+                    <!-- Main Progress Bar Track -->
+                    <div class="w-full bg-[#0F1218] h-4 rounded-full overflow-hidden p-0.5 border border-white/10 relative">
+                        <div id="pauseProgressBar" class="h-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-amber-400 rounded-full transition-all duration-500" style="width: 0%;"></div>
+                    </div>
+
+                    <!-- Milestone Markers Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                        <!-- 9 Hours Milestone Card -->
+                        <div id="milestone_9h" class="pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold font-mono text-xs text-cyan-400">9 ЧАСОВ</span>
+                                <span id="milestoneBadge_9h" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">09:00:00</span>
+                            </div>
+                            <p id="milestoneTitle_9h" class="text-[11px] font-semibold text-slate-300">Сокращённый daily rest</p>
+                            <p id="milestoneDesc_9h" class="text-[10px] text-slate-400 leading-tight">Ожидание достижения 9ч...</p>
+                        </div>
+
+                        <!-- 11 Hours Milestone Card -->
+                        <div id="milestone_11h" class="pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold font-mono text-xs text-emerald-400">11 ЧАСОВ</span>
+                                <span id="milestoneBadge_11h" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">11:00:00</span>
+                            </div>
+                            <p id="milestoneTitle_11h" class="text-[11px] font-semibold text-slate-300">Нормальный daily rest</p>
+                            <p id="milestoneDesc_11h" class="text-[10px] text-slate-400 leading-tight">Ожидание достижения 11ч...</p>
+                        </div>
+
+                        <!-- 24 Hours Milestone Card -->
+                        <div id="milestone_24h" class="pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold font-mono text-xs text-amber-400">24 ЧАСА</span>
+                                <span id="milestoneBadge_24h" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">24:00:00</span>
+                            </div>
+                            <p id="milestoneTitle_24h" class="text-[11px] font-semibold text-slate-300">Сокр. weekly rest</p>
+                            <p id="milestoneDesc_24h" class="text-[10px] text-slate-400 leading-tight">Требует компенсации до 3-й недели</p>
+                        </div>
+
+                        <!-- 45 Hours Milestone Card -->
+                        <div id="milestone_45h" class="pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold font-mono text-xs text-purple-400">45 ЧАСОВ</span>
+                                <span id="milestoneBadge_45h" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">45:00:00</span>
+                            </div>
+                            <p id="milestoneTitle_45h" class="text-[11px] font-semibold text-slate-300">Норм. weekly rest</p>
+                            <p id="milestoneDesc_45h" class="text-[10px] text-slate-400 leading-tight">Полноценный еженедельный отдых</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Status & Advice Banner -->
+                <div id="pauseStatusNoticeBox" class="p-4 rounded-xl border bg-[#0F1218] border-cyan-500/30 text-xs space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-white flex items-center gap-2">
+                            <i id="pauseStatusNoticeIcon" class="fa-solid fa-spinner fa-spin text-cyan-400"></i>
+                            <span id="pauseStatusNoticeTitle">Расчёт параметров паузы...</span>
+                        </span>
+                        <span id="reducedRestUsageBadge" class="bg-slate-800 text-cyan-300 font-mono px-2 py-0.5 rounded text-[11px] border border-white/10">Сокращённых пауз на этой неделе: 0/3</span>
+                    </div>
+                    <p id="pauseStatusNoticeDetail" class="text-slate-300 leading-relaxed">
+                        Идет расчёт времени с момента закрытия последней смены.
+                    </p>
+
+                    <!-- Compensation Details Sub-card (visible when >= 24h rest) -->
+                    <div id="compensationCard" class="hidden mt-3 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl space-y-1.5 text-slate-200">
+                        <div class="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Расчёт компенсации отдыха (Ст. 8 ЕС 561/2006)</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                            <div>• Взятый отдых: <span id="compRestTaken" class="text-white font-bold">24 ч 00 мин</span></div>
+                            <div>• Недобор до 45ч: <span id="compHoursNeeded" class="text-amber-300 font-bold">21 ч 00 мин</span></div>
+                            <div class="sm:col-span-2">• Крайний срок компенсации: <span id="compDeadlineDate" class="text-emerald-400 font-bold">Воскресенье, 15.10.2026, 23:59</span> (Конец 3-й недели)</div>
+                        </div>
+                        <p class="text-[10px] text-amber-300/80 italic mt-1">
+                            *Компенсация должна быть приобщена к любому другому периоду отдыха продолжительностью не менее 9 часов.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TachoShift Alarm & Dashboard Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                
+                <div class="lg:col-span-5 volvo-card rounded-2xl p-5 flex flex-col justify-between relative space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-clock"></i> Калькулятор паузы и будильника
+                        </span>
+                        <span id="pauseStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/10">Ожидание смены</span>
+                    </div>
+
+                    <!-- Step 1: Pause Selection -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-slate-300">1. Выберите желаемый период отдыха:</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button onclick="selectPauseDuration(9)" id="pauseBtn_9" class="py-2.5 px-1 bg-[#0F1218] hover:bg-slate-800 border border-white/10 rounded-xl text-center transition cursor-pointer">
+                                <span class="block text-sm font-black font-mono text-cyan-400">9 ч</span>
+                                <span class="block text-[9px] text-slate-400">Сокр.</span>
+                            </button>
+                            <button onclick="selectPauseDuration(11)" id="pauseBtn_11" class="py-2.5 px-1 bg-[#0F1218] hover:bg-slate-800 border border-white/10 rounded-xl text-center transition cursor-pointer">
+                                <span class="block text-sm font-black font-mono text-cyan-400">11 ч</span>
+                                <span class="block text-[9px] text-slate-400">Норм.</span>
+                            </button>
+                            <button onclick="selectPauseDuration(24)" id="pauseBtn_24" class="py-2.5 px-1 bg-[#0F1218] hover:bg-slate-800 border border-white/10 rounded-xl text-center transition cursor-pointer">
+                                <span class="block text-sm font-black font-mono text-cyan-400">24 ч</span>
+                                <span class="block text-[9px] text-slate-400">Выходной</span>
+                            </button>
+                            <button onclick="selectPauseDuration(45)" id="pauseBtn_45" class="py-2.5 px-1 bg-[#0F1218] hover:bg-slate-800 border border-white/10 rounded-xl text-center transition cursor-pointer">
+                                <span class="block text-sm font-black font-mono text-cyan-400">45 ч</span>
+                                <span class="block text-[9px] text-slate-400">Неделя</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Calculation Results Display -->
+                    <div id="calcResultsBox" class="bg-[#0F1218] rounded-xl p-3.5 border border-white/10 space-y-2 text-xs font-mono">
+                        <div class="flex justify-between items-center text-slate-400">
+                            <span>Начало паузы:</span>
+                            <span id="calcPauseStart" class="text-white font-bold">--:--</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-400">
+                            <span>Конец паузы:</span>
+                            <span id="calcPauseEnd" class="text-cyan-400 font-bold text-sm">--:--</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-400 border-t border-white/5 pt-2">
+                            <span>Пройдено времени паузы:</span>
+                            <span id="gaugeTimeText" class="text-emerald-400 font-black">00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Reminder Time Selector -->
+                    <div id="reminderSection" class="space-y-2">
+                        <label class="block text-xs font-medium text-slate-300">2. Напомнить за сколько до конца паузы?</label>
+                        <div class="flex items-center justify-between bg-[#0F1218] px-3 py-2 rounded-xl border border-white/10 font-mono">
+                            <span class="text-xs text-slate-400">За <span id="reminderMinutesText" class="text-cyan-400 font-bold text-sm">30</span> мин</span>
+                            <div class="flex items-center space-x-1">
+                                <button onclick="adjustReminder(-10)" class="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer">-10</button>
+                                <button onclick="adjustReminder(-5)" class="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer">-5</button>
+                                <button onclick="adjustReminder(5)" class="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer">+5</button>
+                                <button onclick="adjustReminder(10)" class="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer">+10</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Alarm System Launcher -->
+                    <div class="space-y-2">
+                        <button onclick="applyAlarmTime()" class="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-90 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-bell"></i>
+                            <span>Активировать таймер на <span id="alarmTargetTimeText">--:--</span></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Statistics Bars Card -->
+                <div class="lg:col-span-7 volvo-card rounded-2xl p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-semibold text-slate-400 mb-2">Текущий статус смены & РТО (Регламент 561/2006)</div>
+                        <div id="statShiftStatus" class="text-2xl font-black font-mono text-white mb-4">Смена закрыта</div>
+                    </div>
+
+                    <div class="space-y-3" id="realStatsContainer">
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                <span>Длительность последней / текущей смены</span>
+                                <span class="font-mono text-white" id="statShiftDuration">0 ч 0 мин</span>
+                            </div>
+                            <div class="w-full bg-[#0F1218] h-2.5 rounded-full overflow-hidden border border-white/5">
+                                <div id="barShiftDuration" class="bg-cyan-400 h-full rounded-full" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                <span>Превышение 13ч (Удлинённая смена)</span>
+                                <span class="font-mono text-white" id="statOver13">Нет</span>
+                            </div>
+                            <div class="w-full bg-[#0F1218] h-2.5 rounded-full overflow-hidden border border-white/5">
+                                <div id="barOver13" class="bg-emerald-400 h-full rounded-full" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                <span>Всего смен зафиксировано</span>
+                                <span class="font-mono text-white" id="statTotalShiftsCount">0</span>
+                            </div>
+                            <div class="w-full bg-[#0F1218] h-2.5 rounded-full overflow-hidden border border-white/5">
+                                <div class="bg-blue-400 h-full rounded-full" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- TAB 2: WEEKLY VIEW (Ежедневно) -->
+        <div id="view_weekly" class="space-y-4 hidden">
+            <div class="volvo-card rounded-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-week text-cyan-400"></i>
+                        <span>Журнал по дням: Страны, Пробег и Сокращённый отдых (9ч)</span>
+                    </h3>
+                    <span class="text-xs text-slate-400 bg-[#0F1218] px-3 py-1 rounded-xl border border-white/10 font-mono">Последние 7 смен</span>
+                </div>
+
+                <!-- 7 Day Cards Container -->
+                <div class="grid grid-cols-1 sm:grid-cols-7 gap-2.5" id="weeklyDaysContainer">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- RTO Information Panel -->
+            <div class="volvo-card rounded-2xl p-5 space-y-3">
+                <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">ИНФОРМАЦИЯ ОБ ОТДЫХЕ И КОМПЕНСАЦИЯХ (РТО)</h4>
+                <div class="space-y-2 text-xs">
+                    <div class="flex justify-between py-2 border-b border-white/5">
+                        <span class="text-slate-400">Сокращённых пауз (9ч) зафиксировано за текущий период:</span>
+                        <span id="rtoReducedCount" class="font-mono font-bold text-amber-400">0 из 3</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-white/5">
+                        <span class="text-slate-400">Требуемая компенсация отдыха:</span>
+                        <span id="rtoCompensationNeeded" class="font-mono font-bold text-emerald-400">0 ч (Компенсация не требуется)</span>
+                    </div>
+                    <div class="flex justify-between py-2">
+                        <span class="text-slate-400">Общий пробег за сохраненный период:</span>
+                        <span id="rtoTotalDistance" class="font-mono font-bold text-cyan-400">0 км</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: HISTORY & SHIFTS TABLE (Свед.) -->
+        <div id="view_history" class="space-y-4 hidden">
+            <div class="volvo-card rounded-2xl p-5">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b border-white/10">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-book-open text-cyan-400"></i>
+                            <span>Полный журнал истории смен</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Учёт стран отбытия/прибытия, пробега, координат и пауз</p>
+                    </div>
+                    <div class="flex items-center flex-wrap gap-2">
+                        <button onclick="openPdfModal()" class="px-3 py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-medium rounded-xl shadow-lg transition flex items-center gap-1.5 cursor-pointer">
+                            <i class="fa-regular fa-file-pdf"></i> Экспорт PDF
+                        </button>
+                        <button onclick="openManualModal()" class="px-3 py-2 bg-[#202837] hover:bg-slate-700 text-xs font-medium rounded-xl border border-white/5 transition text-emerald-400 flex items-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-plus"></i> Добавить смену
+                        </button>
+                        <button onclick="clearAllData()" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium rounded-xl border border-rose-500/30 transition cursor-pointer">
+                            Сбросить
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-[#0F1218] text-slate-400 uppercase tracking-wider border-b border-white/10">
+                            <tr>
+                                <th class="p-3">Открытие</th>
+                                <th class="p-3">Страна (Откр ➔ Закр)</th>
+                                <th class="p-3">Закрытие</th>
+                                <th class="p-3">Длительность</th>
+                                <th class="p-3">Пробег (км)</th>
+                                <th class="p-3 text-center">Сокр. отдых 9ч</th>
+                                <th class="p-3 text-right">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shiftsTableBody" class="divide-y divide-white/5">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyTableState" class="text-center py-12 text-slate-500 hidden">
+                    <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-600"></i>
+                    <p>История пуста. Откройте смену во вкладке «Суточ.».</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- TRAFFICBAN MODAL WINDOW -->
+    <div id="trafficbanModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+        <div class="volvo-card rounded-2xl w-full max-w-3xl p-4 sm:p-6 shadow-2xl relative border border-cyan-500/40 max-h-[92vh] flex flex-col justify-between">
+            <div>
+                <!-- Modal Header -->
+                <div class="flex justify-between items-start border-b border-white/10 pb-3 mb-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl">
+                            <i class="fa-solid fa-ban text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2 flex-wrap gap-1">
+                                <h3 class="text-sm sm:text-base font-bold text-white">ТЕКУЩИЕ ЗАПРЕТЫ ДВИЖЕНИЯ (TRAFFICBAN)</h3>
+                                <span id="tbOpeningCountryBadge" class="bg-emerald-950 text-emerald-300 text-[11px] px-2 py-0.5 rounded border border-emerald-500/40 font-mono">
+                                    Открытие: 🇩🇪 DE
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Выберите любую страну из списка ниже, чтобы бысто проверить запреты по вашему маршруту</p>
+                        </div>
+                    </div>
+                    <button onclick="closeTrafficbanModal()" class="text-slate-400 hover:text-white text-lg p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- COUNTRY FLAGS QUICK SELECTOR BAR -->
+                <div class="mb-4 bg-[#0F1218] p-2.5 rounded-xl border border-white/10 space-y-1.5">
+                    <div class="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                        <span><i class="fa-solid fa-flag text-cyan-400"></i> Быстрый просмотр запретов по другим странам:</span>
+                        <span id="tbViewedCountryTitle" class="text-cyan-300 font-bold font-mono">🇩🇪 Германия (DE)</span>
+                    </div>
+                    <!-- Country Flags Pill List -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar" id="tbFlagsBar">
+                        <!-- Dynamic flag pills generated via JS -->
+                    </div>
+                </div>
+
+                <!-- Current Restriction Alert Box -->
+                <div id="tbCurrentStatusBox" class="p-3 rounded-xl border mb-3 text-xs font-medium flex items-center space-x-3">
+                    <i id="tbCurrentStatusIcon" class="fa-solid fa-circle-check text-lg"></i>
+                    <div>
+                        <div id="tbCurrentStatusTitle" class="font-bold text-sm">Проверка текущих ограничений...</div>
+                        <div id="tbCurrentStatusSubtitle" class="text-slate-300 text-[11px]">Сегодня не зафиксированы действенные запреты в этой стране.</div>
+                    </div>
+                </div>
+
+                <!-- Country Specific Restrictions Detail List -->
+                <div class="space-y-2 overflow-y-auto max-h-[35vh] pr-1">
+                    <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-list-check text-cyan-400"></i> Правила и ограничения для выбранной страны:
+                    </h4>
+                    
+                    <div id="tbRulesContainer" class="space-y-2 text-xs">
+                        <!-- Dynamic rules injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Confirm Actions -->
+            <div class="pt-3 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 mt-3">
+                <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-shield-cat text-cyan-400"></i>
+                    <span>Открытие смены произойдет для: <strong id="tbFooterCountryText" class="text-emerald-400 font-mono">🇩🇪 DE</strong></span>
+                    <button onclick="useViewedCountryForOpening()" id="btnUseViewedCountry" class="hidden text-[10px] bg-cyan-950 hover:bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/40 transition">
+                        Сменить открытие на <span id="viewedCountryCodeBtn">--</span>
+                    </button>
+                </div>
+                <div class="flex space-x-2 w-full sm:w-auto">
+                    <button onclick="closeTrafficbanModal()" class="flex-1 sm:flex-none px-4 py-2.5 bg-[#202837] hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition cursor-pointer">
+                        Отмена
+                    </button>
+                    <button onclick="confirmAndOpenShift()" class="flex-1 sm:flex-none px-6 py-2.5 volvo-btn-primary text-xs rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-truck-fast"></i>
+                        <span>Подтвердить и открыть смену</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for PDF Export -->
+    <div id="pdfModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="volvo-card rounded-2xl w-full max-w-sm p-6 shadow-2xl relative border border-cyan-500/30">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-regular fa-file-pdf text-red-400"></i>
+                <span>Экспорт отчета в PDF</span>
+            </h3>
+            
+            <div class="space-y-4 text-xs">
+                <div>
+                    <label class="block text-slate-300 mb-1">Начальная дата:</label>
+                    <input type="date" id="pdfStartDate" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono">
+                </div>
+                <div>
+                    <label class="block text-slate-300 mb-1">Конечная дата:</label>
+                    <input type="date" id="pdfEndDate" class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono">
+                </div>
+                <div class="pt-2">
+                    <p class="text-[10px] text-slate-400">В отчет попадут все смены за указанный период с поддержкой кириллицы. Оставьте пустым для экспорта всей истории.</p>
+                </div>
+                <div class="flex justify-end space-x-3 pt-3 border-t border-white/10">
+                    <button type="button" onclick="closePdfModal()" class="px-4 py-2 bg-[#202837] hover:bg-slate-700 rounded-xl text-slate-300 transition cursor-pointer">Отмена</button>
+                    <button type="button" onclick="generatePDF()" class="px-5 py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white rounded-xl transition shadow cursor-pointer">Сформировать PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Manual Shift Entry -->
+    <div id="manualModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="volvo-card rounded-2xl w-full max-w-lg p-6 shadow-2xl relative border border-cyan-500/30">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-cyan-400"></i>
+                <span>Добавить смену вручную</span>
+            </h3>
+            
+            <form onsubmit="saveManualShift(event)" class="space-y-3 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 mb-1">Открытие (Дата / Время):</label>
+                        <input type="datetime-local" id="mStartTime" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 mb-1">Закрытие (Дата / Время):</label>
+                        <input type="datetime-local" id="mEndTime" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-mono">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 mb-1">Страна откр.:</label>
+                        <input type="text" id="mStartCountry" placeholder="FR" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white uppercase font-mono focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 mb-1">Страна закр.:</label>
+                        <input type="text" id="mEndCountry" placeholder="DE" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white uppercase font-mono focus:outline-none focus:border-cyan-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 mb-1">Нач. одометр (км):</label>
+                        <input type="number" id="mStartOdo" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 mb-1">Кон. одометр (км):</label>
+                        <input type="number" id="mEndOdo" required class="w-full bg-[#0F1218] border border-white/10 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500">
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-2">
+                    <input type="checkbox" id="mIsReducedRest" class="w-4 h-4 rounded bg-[#0F1218] border-white/10 text-cyan-400 focus:ring-0">
+                    <label for="mIsReducedRest" class="text-slate-300 cursor-pointer">Сокращённый ежедневный отдых (9 часов)</label>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-3 border-t border-white/10">
+                    <button type="button" onclick="closeManualModal()" class="px-4 py-2 bg-[#202837] hover:bg-slate-700 rounded-xl text-slate-300 transition cursor-pointer">Отмена</button>
+                    <button type="submit" class="px-5 py-2 volvo-btn-primary rounded-xl transition shadow cursor-pointer">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        const COUNTRY_FLAGS = {
+            'DE': '🇩🇪', 'PL': '🇵🇱', 'FR': '🇫🇷', 'LT': '🇱🇹', 'ES': '🇪🇸',
+            'IT': '🇮🇹', 'BE': '🇧🇪', 'NL': '🇳🇱', 'AT': '🇦🇹', 'CZ': '🇨🇿',
+            'SK': '🇸🇰', 'HU': '🇭🇺', 'RO': '🇷🇴', 'BG': '🇧🇬', 'DK': '🇩🇰',
+            'SE': '🇸🇪', 'FI': '🇫🇮', 'EE': '🇪🇪', 'LV': '🇱🇻', 'PT': '🇵🇹',
+            'IE': '🇮🇪', 'GB': '🇬🇧', 'CH': '🇨🇭', 'NO': '🇳🇴'
+        };
+
+        const TRAFFICBAN_DATA = {
+            'DE': {
+                name: 'Германия (Germany)',
+                flag: '🇩🇪',
+                generalBan: 'Воскресенье и государственные праздники с 00:00 до 22:00 для грузовиков с полной массой >7.5т.',
+                summerBan: 'Каждую субботу с 1 июля по 31 августа с 07:00 до 20:00 на ключевых автомагистралях (A1, A2, A3, A6, A7, A8, A9, A61, A81, A92, A93, A99).',
+                nightBan: 'Отсутствует общенациональный ночной запрет. Соблюдайте знаки экологических зон.',
+                holidays: ['01-01', '03-29', '04-01', '05-01', '05-09', '05-20', '05-30', '10-03', '10-31', '11-01', '12-25', '12-26']
+            },
+            'FR': {
+                name: 'Франция (France)',
+                flag: '🇫🇷',
+                generalBan: 'Суббота с 22:00 до воскресенья 22:00; накануне праздников с 22:00 до 22:00 дня праздника (>7.5т).',
+                summerBan: 'Специальные "Черные субботы" (Bison Futé) в июле/августе с 07:00 до 19:00.',
+                nightBan: 'Запрет движения по воскресеньям и праздничным дням в ночное время с 22:00.',
+                holidays: ['01-01', '04-01', '05-01', '05-08', '05-09', '05-20', '07-14', '08-15', '11-01', '11-11', '12-25']
+            },
+            'PL': {
+                name: 'Польша (Poland)',
+                flag: '🇵🇱',
+                generalBan: 'Праздничные дни с 08:00 до 22:00; накануне с 18:00 до 22:00 (>12т).',
+                summerBan: 'Летний период (с конца июня по конец августа): Пятница 18:00–22:00, Суббота 08:00–14:00, Воскресенье 08:00–22:00.',
+                nightBan: 'Нет общего ночного ограничения.',
+                holidays: ['01-01', '01-06', '03-31', '04-01', '05-01', '05-03', '05-19', '05-30', '08-15', '11-01', '11-11', '12-25', '12-26']
+            },
+            'AT': {
+                name: 'Австрия (Austria)',
+                flag: '🇦🇹',
+                generalBan: 'Суббота с 15:00 до воскресенья 22:00; праздничные дни с 00:00 до 22:00 (>7.5т).',
+                summerBan: 'Дополнительные субботние запреты на автобане A12 (Inntal) и A13 (Brenner).',
+                nightBan: 'Ночной запрет движения с 22:00 до 05:00 для грузовиков с разрешённой массой >7.5т (ограничение скорости 60 км/ч).',
+                holidays: ['01-01', '01-06', '04-01', '05-01', '05-09', '05-20', '05-30', '08-15', '10-26', '11-01', '12-08', '12-25', '12-26']
+            },
+            'IT': {
+                name: 'Италия (Italy)',
+                flag: '🇮🇹',
+                generalBan: 'Воскресенье с 09:00 до 22:00 (октябрь-май) или с 07:00 до 22:00 (июнь-сентябрь) (>7.5т).',
+                summerBan: 'Летние пятницы (16:00-22:00) и субботы (08:00-16:00 / 08:00-22:00 в пиковые выходные).',
+                nightBan: 'Нет общего ночного запрета, за исключением туннелей (Mont Blanc, Frejus).',
+                holidays: ['01-01', '01-06', '03-31', '04-01', '04-25', '05-01', '06-02', '08-15', '11-01', '12-08', '12-25', '12-26']
+            },
+            'CH': {
+                name: 'Швейцария (Switzerland)',
+                flag: '🇨🇭',
+                generalBan: 'Воскресенье и государственные праздники 00:00 - 24:00 (>3.5т).',
+                summerBan: 'Отсутствуют дополнительные летние субботние дневные ограничения.',
+                nightBan: 'СТРОГИЙ ночной запрет с 22:00 до 05:00 ежедневно!',
+                holidays: ['01-01', '01-02', '03-29', '04-01', '05-09', '05-20', '08-01', '12-25', '12-26']
+            },
+            'CZ': {
+                name: 'Чехия (Czech Republic)',
+                flag: '🇨🇿',
+                generalBan: 'Воскресенье и праздничные дни с 13:00 до 22:00 (>7.5т).',
+                summerBan: 'Летний период (01.07 - 31.08): Пятница 17:00-21:00, Суббота 07:00-13:00, Воскресенье 13:00-22:00.',
+                nightBan: 'Отсутствует.',
+                holidays: ['01-01', '03-29', '04-01', '05-01', '05-08', '07-05', '07-06', '09-28', '10-28', '11-17', '12-24', '12-25', '12-26']
+            },
+            'ES': {
+                name: 'Испания (Spain)',
+                flag: '🇪🇸',
+                generalBan: 'Воскресные и праздничные дни на выездах из крупных городов и приграничных трассах (N-121, AP-8, A-8, N-330).',
+                summerBan: 'Летние воскресенья и праздники с 16:00 до 22:00/24:00 на магистралях к границам Франции.',
+                nightBan: 'Отсутствует общий ночной запрет.',
+                holidays: ['01-01', '01-06', '03-29', '05-01', '08-15', '10-12', '11-01', '12-06', '12-08', '12-25']
+            },
+            'BE': {
+                name: 'Бельгия (Belgium)',
+                flag: '🇧🇪',
+                generalBan: 'Отсутствует общенациональный воскресный запрет движения для транзитных грузовиков.',
+                summerBan: 'Нет дополнительных летних ограничений.',
+                nightBan: 'Нет ночных запретов, за исключением экологических зон Антверпена и Брюсселя.',
+                holidays: ['01-01', '04-01', '05-01', '05-09', '05-20', '07-21', '08-15', '11-01', '11-11', '12-25']
+            },
+            'NL': {
+                name: 'Нидерланды (Netherlands)',
+                flag: '🇳🇱',
+                generalBan: 'Отсутствует стандартный воскресный запрет на движение грузовиков.',
+                summerBan: 'Запреты вводятся только при экстремальной жаре/смоге по специальным указаниям.',
+                nightBan: 'Нет общего ночного запрета.',
+                holidays: ['01-01', '04-01', '04-27', '05-09', '05-20', '12-25', '12-26']
+            },
+            'LT': {
+                name: 'Литва (Lithuania)',
+                flag: '🇱🇹',
+                generalBan: 'Общий воскресный запрет отсутствует.',
+                summerBan: 'В жаркие дни могут вводиться ограничения на асфальтовых дорогах при температуре выше +25°C.',
+                nightBan: 'Нет общего ночного запрета.',
+                holidays: ['01-01', '02-16', '03-11', '03-31', '04-01', '05-01', '06-24', '07-06', '08-15', '11-01', '11-02', '12-24', '12-25', '12-26']
+            },
+            'SK': {
+                name: 'Словакия (Slovakia)',
+                flag: '🇸🇰',
+                generalBan: 'Воскресенье и государственные праздники с 00:00 до 22:00 (>7.5т).',
+                summerBan: 'Летние субботы (01.07 - 31.08) с 07:00 до 19:00.',
+                nightBan: 'Отсутствует ночной запрет.',
+                holidays: ['01-01', '01-06', '03-29', '04-01', '05-01', '05-08', '07-05', '08-29', '09-01', '09-15', '11-01', '11-17', '12-24', '12-25', '12-26']
+            },
+            'HU': {
+                name: 'Венгрия (Hungary)',
+                flag: '🇭🇺',
+                generalBan: 'Суббота с 22:00 до воскресенья 22:00 (зима) или с 15:00 субботы до 22:00 воскресенья (лето) (>7.5т).',
+                summerBan: 'Летний режим с 1 июля по 31 августа.',
+                nightBan: 'Отсутствует.',
+                holidays: ['01-01', '03-15', '03-29', '04-01', '05-01', '05-20', '08-20', '10-23', '11-01', '12-25', '12-26']
+            }
+        };
+
+        let appState = {
+            activeShift: null,
+            selectedPauseHours: 11,
+            reminderMinutes: 30,
+            shifts: [
+                {
+                    id: 'shift_default_1',
+                    startTime: new Date(Date.now() - 86400000 * 2).toISOString(),
+                    endTime: new Date(Date.now() - 86400000 * 2 + 12 * 3600000).toISOString(),
+                    startCountry: 'FR',
+                    endCountry: 'DE',
+                    startOdometer: 153250,
+                    endOdometer: 153700,
+                    durationHours: 12.0,
+                    isReducedRest: false
+                }
+            ]
+        };
+
+        let pendingCountryToOpen = 'DE';
+        let viewedTrafficbanCountry = 'DE';
+        let alarmAudioContext = null;
+
+        window.onload = function() {
+            loadFromLocalStorage();
+            renderApp();
+            setInterval(updateTimersAndPauseVisualization, 1000);
+            requestNotificationPermission();
+        };
+
+        function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+        }
+
+        function switchTab(tabName) {
+            ['daily', 'weekly', 'history'].forEach(t => {
+                document.getElementById(`view_${t}`).classList.add('hidden');
+                document.getElementById(`tabBtn_${t}`).classList.remove('active');
+            });
+            document.getElementById(`view_${tabName}`).classList.remove('hidden');
+            document.getElementById(`tabBtn_${tabName}`).classList.add('active');
+            if (tabName === 'weekly') renderWeeklyBoxes();
+        }
+
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('tachoshift_pro_v2', JSON.stringify(appState));
+            } catch (e) {
+                showToast("Ошибка сохранения данных", "error");
+            }
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('tachoshift_pro_v2') || localStorage.getItem('tachoshift_pro_v1');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    appState = { ...appState, ...parsed };
+                } catch (e) {
+                    console.error("Storage parse error", e);
+                }
+            }
+        }
+
+        // TRAFFICBAN POPUP FLOW
+        function requestOpenShiftWithTrafficban() {
+            if (appState.activeShift) {
+                showToast("Смена уже открыта!", "error");
+                return;
+            }
+
+            const country = document.getElementById('openCountrySelect').value;
+            pendingCountryToOpen = country;
+            viewedTrafficbanCountry = country;
+
+            openTrafficbanModal(country);
+        }
+
+        function openTrafficbanModal(countryCode) {
+            const modal = document.getElementById('trafficbanModal');
+            
+            // Build Country Flag Selector Bar
+            buildTrafficbanFlagsBar();
+
+            // Render current country view
+            switchTrafficbanViewCountry(countryCode);
+
+            modal.classList.remove('hidden');
+        }
+
+        function buildTrafficbanFlagsBar() {
+            const container = document.getElementById('tbFlagsBar');
+            const countries = Object.keys(TRAFFICBAN_DATA);
+            
+            let html = '';
+            countries.forEach(code => {
+                const flag = COUNTRY_FLAGS[code] || '🇪🇺';
+                html += `
+                    <button onclick="switchTrafficbanViewCountry('${code}')" id="flagPill_${code}" class="flag-btn px-2.5 py-1 bg-[#181E29] hover:bg-slate-700 text-slate-200 text-xs font-mono rounded-lg border border-white/10 flex items-center gap-1 shrink-0 cursor-pointer">
+                        <span>${flag}</span>
+                        <span>${code}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function switchTrafficbanViewCountry(countryCode) {
+            viewedTrafficbanCountry = countryCode;
+
+            // Highlight active flag pill
+            Object.keys(TRAFFICBAN_DATA).forEach(code => {
+                const el = document.getElementById(`flagPill_${code}`);
+                if (el) {
+                    if (code === countryCode) {
+                        el.className = "flag-btn selected px-2.5 py-1 text-cyan-300 text-xs font-mono rounded-lg border border-cyan-400 font-bold flex items-center gap-1 shrink-0 cursor-pointer shadow-md";
+                    } else {
+                        el.className = "flag-btn px-2.5 py-1 bg-[#181E29] hover:bg-slate-700 text-slate-300 text-xs font-mono rounded-lg border border-white/10 flex items-center gap-1 shrink-0 cursor-pointer";
+                    }
+                }
+            });
+
+            const countryInfo = TRAFFICBAN_DATA[countryCode] || {
+                name: `Страна (${countryCode})`,
+                flag: COUNTRY_FLAGS[countryCode] || '🇪🇺',
+                generalBan: 'Воскресенье и праздники в соответствии с местным законодательством.',
+                summerBan: 'Уточняйте региональные летние ограничения.',
+                nightBan: 'Соблюдайте местный тихий час.',
+                holidays: []
+            };
+
+            document.getElementById('tbViewedCountryTitle').textContent = `${countryInfo.flag} ${countryInfo.name}`;
+            document.getElementById('tbOpeningCountryBadge').textContent = `Открытие: ${COUNTRY_FLAGS[pendingCountryToOpen]||''} ${pendingCountryToOpen}`;
+            document.getElementById('tbFooterCountryText').textContent = `${COUNTRY_FLAGS[pendingCountryToOpen]||''} ${pendingCountryToOpen}`;
+
+            // Show option to switch pending country to viewed country if different
+            const btnSwitch = document.getElementById('btnUseViewedCountry');
+            if (countryCode !== pendingCountryToOpen) {
+                btnSwitch.classList.remove('hidden');
+                document.getElementById('viewedCountryCodeBtn').textContent = `${countryInfo.flag} ${countryCode}`;
+            } else {
+                btnSwitch.classList.add('hidden');
+            }
+
+            // Perform live restriction check for viewed country
+            const banStatus = checkBanForCountry(countryCode, new Date());
+
+            const statusBox = document.getElementById('tbCurrentStatusBox');
+            const statusIcon = document.getElementById('tbCurrentStatusIcon');
+            const statusTitle = document.getElementById('tbCurrentStatusTitle');
+            const statusSub = document.getElementById('tbCurrentStatusSubtitle');
+
+            if (banStatus.isBan) {
+                statusBox.className = "p-3 rounded-xl border mb-3 text-xs font-medium flex items-center space-x-3 bg-red-950/70 border-red-500/60 text-red-100 shadow-lg";
+                statusIcon.className = "fa-solid fa-circle-exclamation text-xl text-red-400 animate-bounce";
+                statusTitle.textContent = `⚠️ ДЕЙСТВУЕТ ЗАПРЕТ ДВИЖЕНИЯ В ${countryCode}!`;
+                statusSub.textContent = banStatus.reason;
+            } else {
+                statusBox.className = "p-3 rounded-xl border mb-3 text-xs font-medium flex items-center space-x-3 bg-emerald-950/50 border-emerald-500/50 text-emerald-100";
+                statusIcon.className = "fa-solid fa-circle-check text-xl text-emerald-400";
+                statusTitle.textContent = `🟢 ДВИЖЕНИЕ В ${countryCode} РАЗРЕШЕНО`;
+                statusSub.textContent = `На текущий момент (${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}) ограничений для страны ${countryCode} не выявлено.`;
+            }
+
+            // Inject rules
+            const container = document.getElementById('tbRulesContainer');
+            container.innerHTML = `
+                <div class="p-2.5 bg-[#0F1218] rounded-xl border border-white/5 space-y-1">
+                    <div class="font-bold text-amber-400 flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-calendar-xmark"></i> Воскресные и праздничные запреты:
+                    </div>
+                    <p class="text-slate-300 text-[11px] leading-relaxed">${countryInfo.generalBan}</p>
+                </div>
+
+                <div class="p-2.5 bg-[#0F1218] rounded-xl border border-white/5 space-y-1">
+                    <div class="font-bold text-cyan-400 flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-sun"></i> Летние ограничения (Каникулы):
+                    </div>
+                    <p class="text-slate-300 text-[11px] leading-relaxed">${countryInfo.summerBan}</p>
+                </div>
+
+                <div class="p-2.5 bg-[#0F1218] rounded-xl border border-white/5 space-y-1">
+                    <div class="font-bold text-purple-400 flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-moon"></i> Ночные запреты / Экологические зоны:
+                    </div>
+                    <p class="text-slate-300 text-[11px] leading-relaxed">${countryInfo.nightBan}</p>
+                </div>
+            `;
+        }
+
+        function useViewedCountryForOpening() {
+            pendingCountryToOpen = viewedTrafficbanCountry;
+            document.getElementById('openCountrySelect').value = pendingCountryToOpen;
+            switchTrafficbanViewCountry(viewedTrafficbanCountry);
+            showToast(`Страна открытия смены изменена на ${pendingCountryToOpen}`, "info");
+        }
+
+        function checkBanForCountry(code, dateObj) {
+            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 6 = Sat
+            const hours = dateObj.getHours();
+            const month = dateObj.getMonth(); // 0 = Jan, 6 = Jul, 7 = Aug
+
+            if (code === 'DE') {
+                if (dayOfWeek === 0 && hours < 22) {
+                    return { isBan: true, reason: "Воскресный запрет в Германии (00:00 - 22:00)! Движение грузовиков >7.5т запрещено." };
+                }
+                if ((month === 6 || month === 7) && dayOfWeek === 6 && hours >= 7 && hours < 20) {
+                    return { isBan: true, reason: "Летний субботний запрет в Германии (07:00 - 20:00) на загруженных магистралях." };
+                }
+            } else if (code === 'FR') {
+                if ((dayOfWeek === 6 && hours >= 22) || (dayOfWeek === 0 && hours < 22)) {
+                    return { isBan: true, reason: "Выходной запрет во Франции (Суббота 22:00 — Воскресенье 22:00)!" };
+                }
+            } else if (code === 'AT') {
+                if ((dayOfWeek === 6 && hours >= 15) || (dayOfWeek === 0 && hours < 22)) {
+                    return { isBan: true, reason: "Выходной запрет в Австрии (Суббота 15:00 — Воскресенье 22:00)!" };
+                }
+                if (hours >= 22 || hours < 5) {
+                    return { isBan: true, reason: "Ночной запрет движения в Австрии (22:00 - 05:00)!" };
+                }
+            } else if (code === 'CH') {
+                if (dayOfWeek === 0 || hours >= 22 || hours < 5) {
+                    return { isBan: true, reason: "Запрет в Швейцарии (Воскресенье или Ночной запрет 22:00-05:00)!" };
+                }
+            } else if (code === 'PL') {
+                if (dayOfWeek === 0 && hours >= 8 && hours < 22) {
+                    return { isBan: true, reason: "Воскресный/праздничный запрет в Польше (08:00 - 22:00)!" };
+                }
+            } else if (code === 'CZ') {
+                if (dayOfWeek === 0 && hours >= 13 && hours < 22) {
+                    return { isBan: true, reason: "Воскресный запрет в Чехии (13:00 - 22:00)!" };
+                }
+            } else if (code === 'HU') {
+                if ((dayOfWeek === 6 && hours >= 22) || (dayOfWeek === 0 && hours < 22)) {
+                    return { isBan: true, reason: "Выходной запрет в Венгрии!" };
+                }
+            }
+
+            return { isBan: false, reason: "" };
+        }
+
+        function closeTrafficbanModal() {
+            document.getElementById('trafficbanModal').classList.add('hidden');
+        }
+
+        function confirmAndOpenShift() {
+            closeTrafficbanModal();
+            executeOpenShift(pendingCountryToOpen);
+        }
+
+        function executeOpenShift(country) {
+            const odoInput = document.getElementById('openOdometerInput');
+            let startOdo = parseInt(odoInput.value);
+
+            if (isNaN(startOdo) || startOdo <= 0) {
+                if (appState.shifts.length > 0) {
+                    startOdo = appState.shifts[0].endOdometer;
+                } else {
+                    startOdo = 150000;
+                }
+            }
+
+            // CREATE ACTIVE SHIFT
+            appState.activeShift = {
+                id: 'shift_' + Date.now(),
+                startTime: new Date().toISOString(),
+                startCountry: country,
+                startOdometer: startOdo
+            };
+
+            saveToLocalStorage();
+            renderApp();
+            showToast(`Смена успешно открыта! (${country})`, "success");
+        }
+
+        function closeShift() {
+            if (!appState.activeShift) return;
+
+            const closeOdoInput = document.getElementById('closeOdometerInput');
+            let endOdo = parseInt(closeOdoInput.value);
+
+            if (isNaN(endOdo)) {
+                endOdo = appState.activeShift.startOdometer + 350;
+            }
+
+            if (endOdo < appState.activeShift.startOdometer) {
+                showToast("Конечный пробег не может быть меньше начального!", "error");
+                return;
+            }
+
+            const endCountry = document.getElementById('closeCountrySelect').value;
+            const endTime = new Date();
+            const startTime = new Date(appState.activeShift.startTime);
+            const durationHours = (endTime - startTime) / 3600000;
+
+            const shiftRecord = {
+                id: appState.activeShift.id,
+                startTime: appState.activeShift.startTime,
+                endTime: endTime.toISOString(),
+                startCountry: appState.activeShift.startCountry,
+                endCountry: endCountry,
+                startOdometer: appState.activeShift.startOdometer,
+                endOdometer: endOdo,
+                durationHours: durationHours,
+                isReducedRest: durationHours > 13 ? true : false
+            };
+
+            appState.shifts.unshift(shiftRecord);
+            appState.activeShift = null;
+
+            saveToLocalStorage();
+            renderApp();
+            showToast("Смена закрыта. Пауза начала отсчёт!", "success");
+        }
+
+        function updateTimersAndPauseVisualization() {
+            if (appState.activeShift) {
+                const diff = new Date() - new Date(appState.activeShift.startTime);
+                if (diff >= 0) {
+                    const h = Math.floor(diff / 3600000);
+                    const m = Math.floor((diff % 3600000) / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    const el = document.getElementById('activeElapsedTime');
+                    if (el) {
+                        el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                    }
+                }
+                return;
+            }
+
+            if (appState.shifts.length === 0) return;
+
+            const lastShift = appState.shifts[0];
+            const pauseStart = new Date(lastShift.endTime);
+            const now = new Date();
+            const elapsedMs = Math.max(0, now - pauseStart);
+            const elapsedHours = elapsedMs / 3600000;
+
+            const totalMins = Math.floor(elapsedMs / 60000);
+            const displayH = Math.floor(totalMins / 60);
+            const displayM = totalMins % 60;
+
+            document.getElementById('livePauseTimeBadge').textContent = `Пауза: ${String(displayH).padStart(2,'0')}ч ${String(displayM).padStart(2,'0')}мин`;
+            document.getElementById('pauseStartTimeText').textContent = pauseStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('pauseTotalDurationText').textContent = `${displayH}ч ${displayM}мин`;
+            document.getElementById('gaugeTimeText').textContent = `${String(displayH).padStart(2,'0')}:${String(displayM).padStart(2,'0')}`;
+
+            const progressPct = Math.min(100, (elapsedHours / 45) * 100);
+            document.getElementById('pauseProgressBar').style.width = `${progressPct}%`;
+
+            const reducedRestCount = countReducedRestsThisWeek();
+            document.getElementById('reducedRestUsageBadge').textContent = `Сокращённых пауз на этой неделе: ${reducedRestCount}/3`;
+
+            updateMilestoneCards(elapsedHours, reducedRestCount);
+            updatePauseStatusNotice(elapsedHours, reducedRestCount, pauseStart);
+        }
+
+        function countReducedRestsThisWeek() {
+            let count = 0;
+            const recentShifts = appState.shifts.slice(0, 7);
+            recentShifts.forEach(s => {
+                if (s.isReducedRest) count++;
+            });
+            return count;
+        }
+
+        function updateMilestoneCards(elapsedHours, reducedRestCount) {
+            const m9 = document.getElementById('milestone_9h');
+            const m11 = document.getElementById('milestone_11h');
+            const m24 = document.getElementById('milestone_24h');
+            const m45 = document.getElementById('milestone_45h');
+
+            if (elapsedHours >= 9) {
+                m9.className = "pause-milestone passed border border-emerald-500/40 bg-emerald-950/20 p-3 rounded-xl flex flex-col justify-between space-y-1";
+                if (reducedRestCount >= 3) {
+                    document.getElementById('milestoneTitle_9h').textContent = "⚠️ Пауза 9ч пройдена";
+                    document.getElementById('milestoneDesc_9h').textContent = "Превышен лимит! Стойте до 11ч.";
+                } else {
+                    document.getElementById('milestoneTitle_9h').textContent = "🟢 Пауза 9ч зашла!";
+                    document.getElementById('milestoneDesc_9h').textContent = "Можно открывать смену (Сокращенная).";
+                }
+            } else {
+                m9.className = "pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_9h').textContent = "Сокращённый daily rest";
+                document.getElementById('milestoneDesc_9h').textContent = "Ожидание достижения 9ч...";
+            }
+
+            if (elapsedHours >= 11) {
+                m11.className = "pause-milestone passed border border-emerald-500/40 bg-emerald-950/20 p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_11h').textContent = "🟢 Пауза 11ч зашла!";
+                document.getElementById('milestoneDesc_11h').textContent = "Полноценный суточный отдых выполнен.";
+            } else {
+                m11.className = "pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_11h').textContent = "Нормальный daily rest";
+                document.getElementById('milestoneDesc_11h').textContent = "Ожидание достижения 11ч...";
+            }
+
+            if (elapsedHours >= 24) {
+                m24.className = "pause-milestone passed border border-amber-500/40 bg-amber-950/20 p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_24h').textContent = "🟢 Пауза 24ч зашла!";
+                document.getElementById('milestoneDesc_24h').textContent = "Сокращенный weekly rest. Требует компенсации.";
+            } else {
+                m24.className = "pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_24h').textContent = "Сокр. weekly rest";
+                document.getElementById('milestoneDesc_24h').textContent = "Требует компенсации до 3-й недели";
+            }
+
+            if (elapsedHours >= 45) {
+                m45.className = "pause-milestone passed border border-purple-500/40 bg-purple-950/20 p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_45h').textContent = "🟢 Пауза 45ч зашла!";
+                document.getElementById('milestoneDesc_45h').textContent = "Полноценный еженедельный отдых!";
+            } else {
+                m45.className = "pause-milestone border border-white/10 bg-[#0F1218] p-3 rounded-xl flex flex-col justify-between space-y-1";
+                document.getElementById('milestoneTitle_45h').textContent = "Норм. weekly rest";
+                document.getElementById('milestoneDesc_45h').textContent = "Полноценный еженедельный отдых";
+            }
+        }
+
+        function updatePauseStatusNotice(elapsedHours, reducedRestCount, pauseStart) {
+            const box = document.getElementById('pauseStatusNoticeBox');
+            const icon = document.getElementById('pauseStatusNoticeIcon');
+            const title = document.getElementById('pauseStatusNoticeTitle');
+            const detail = document.getElementById('pauseStatusNoticeDetail');
+            const compCard = document.getElementById('compensationCard');
+
+            if (elapsedHours < 9) {
+                box.className = "p-4 rounded-xl border bg-[#0F1218] border-cyan-500/30 text-xs space-y-2";
+                icon.className = "fa-solid fa-spinner fa-spin text-cyan-400";
+                title.textContent = `Идёт пауза: ${Math.floor(elapsedHours)}ч ${Math.floor((elapsedHours % 1)*60)}мин. Меньше 9 часов.`;
+                detail.textContent = "Смена закрыта. Необходим отдых минимум 9 часов (если есть сокращенные паузы) или 11 часов.";
+                compCard.classList.add('hidden');
+            } 
+            else if (elapsedHours >= 9 && elapsedHours < 11) {
+                if (reducedRestCount >= 3) {
+                    box.className = "p-4 rounded-xl border bg-amber-950/40 border-amber-500/50 text-xs space-y-2";
+                    icon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-base animate-pulse";
+                    title.textContent = "⚠️ Пауза 9 часов зашла, НО сокращённых пауз на этой неделе БОЛЬШЕ НЕТ!";
+                    detail.textContent = "Вы уже использовали допустимый лимит (3 из 3) сокращённых пауз по 9ч. Вам НЕОБХОДИМО достоять до 11 часов!";
+                } else {
+                    box.className = "p-4 rounded-xl border bg-emerald-950/40 border-emerald-500/50 text-xs space-y-2";
+                    icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+                    title.textContent = "🟢 Пауза 9 часов зашла! Можно открывать смену.";
+                    detail.textContent = `Выполнен сокращённый daily rest (9ч). Использовано сокращённых пауз: ${reducedRestCount + 1} из 3.`;
+                }
+                compCard.classList.add('hidden');
+            } 
+            else if (elapsedHours >= 11 && elapsedHours < 24) {
+                box.className = "p-4 rounded-xl border bg-emerald-950/40 border-emerald-500/50 text-xs space-y-2";
+                icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+                title.textContent = "🟢 Пауза 11 часов зашла! Полноценный суточный отдых выполнен.";
+                detail.textContent = "Вы можете открывать смену в любое время или продолжить отдых до 24ч.";
+                compCard.classList.add('hidden');
+            } 
+            else if (elapsedHours >= 24 && elapsedHours < 45) {
+                box.className = "p-4 rounded-xl border bg-amber-950/40 border-amber-500/50 text-xs space-y-2";
+                icon.className = "fa-solid fa-clock-rotate-left text-amber-400 text-base";
+                title.textContent = "🟢 Пауза 24 часа зашла! (Сокращённый еженедельный отдых).";
+                detail.textContent = "Сокращённый еженедельный отдых. Согласно Ст. 8 ЕС 561/2006, требуемый недобор до 45 часов подлежит обязательной компенсации!";
+                
+                compCard.classList.remove('hidden');
+                const restTakenHours = elapsedHours;
+                const hoursNeeded = 45 - restTakenHours;
+                
+                document.getElementById('compRestTaken').textContent = `${Math.floor(restTakenHours)} ч ${Math.floor((restTakenHours % 1)*60)} мин`;
+                document.getElementById('compHoursNeeded').textContent = `${Math.floor(hoursNeeded)} ч ${Math.floor((hoursNeeded % 1)*60)} мин`;
+
+                const deadline = new Date(pauseStart);
+                deadline.setDate(deadline.getDate() + (21 + (7 - deadline.getDay()) % 7));
+                deadline.setHours(23, 59, 59);
+
+                document.getElementById('compDeadlineDate').textContent = `${deadline.toLocaleDateString('ru-RU', {weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'})}, 23:59`;
+            } 
+            else if (elapsedHours >= 45) {
+                box.className = "p-4 rounded-xl border bg-purple-950/40 border-purple-500/50 text-xs space-y-2";
+                icon.className = "fa-solid fa-award text-purple-400 text-base";
+                title.textContent = "🟢 Пауза 45 часов зашла! Полноценный еженедельный отдых зафиксирован.";
+                detail.textContent = "45-часовой отдых завершен. Счетчик сокращённых пауз обнулён. Можно начинать новую рабочую неделю!";
+                compCard.classList.add('hidden');
+            }
+        }
+
+        // RENDER APPLICATION UI
+        function renderApp() {
+            const activeSec = document.getElementById('activeShiftSection');
+            const inactiveSec = document.getElementById('inactiveShiftSection');
+
+            if (appState.activeShift) {
+                activeSec.classList.remove('hidden');
+                inactiveSec.classList.add('hidden');
+
+                document.getElementById('activeCountryBadge').textContent = appState.activeShift.startCountry;
+                document.getElementById('activeStartTime').textContent = new Date(appState.activeShift.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                document.getElementById('activeStartOdo').textContent = `${appState.activeShift.startOdometer} км`;
+                document.getElementById('statShiftStatus').textContent = "Смена активна";
+                document.getElementById('statShiftStatus').className = "text-2xl font-black font-mono text-emerald-400 mb-4";
+            } else {
+                activeSec.classList.add('hidden');
+                inactiveSec.classList.remove('hidden');
+
+                if (appState.shifts.length > 0) {
+                    document.getElementById('openOdometerInput').value = appState.shifts[0].endOdometer;
+                } else {
+                    document.getElementById('openOdometerInput').value = 150000;
+                }
+
+                document.getElementById('statShiftStatus').textContent = "Смена закрыта";
+                document.getElementById('statShiftStatus').className = "text-2xl font-black font-mono text-cyan-400 mb-4";
+            }
+
+            [9, 11, 24, 45].forEach(h => {
+                const btn = document.getElementById(`pauseBtn_${h}`);
+                if (btn) {
+                    if (h === appState.selectedPauseHours) {
+                        btn.className = "py-2.5 px-1 bg-cyan-950 border border-cyan-500/60 rounded-xl text-center transition cursor-pointer shadow-lg";
+                    } else {
+                        btn.className = "py-2.5 px-1 bg-[#0F1218] hover:bg-slate-800 border border-white/10 rounded-xl text-center transition cursor-pointer";
+                    }
+                }
+            });
+
+            const pauseStartBase = appState.shifts.length > 0 ? new Date(appState.shifts[0].endTime) : new Date();
+            const pauseEnd = new Date(pauseStartBase.getTime() + appState.selectedPauseHours * 3600000);
+            const alarmTime = new Date(pauseEnd.getTime() - appState.reminderMinutes * 60000);
+
+            document.getElementById('calcPauseStart').textContent = pauseStartBase.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('calcPauseEnd').textContent = pauseEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('reminderMinutesText').textContent = appState.reminderMinutes;
+            document.getElementById('alarmTargetTimeText').textContent = alarmTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            renderShiftsTable();
+            updateTimersAndPauseVisualization();
+        }
+
+        function renderShiftsTable() {
+            const tbody = document.getElementById('shiftsTableBody');
+            const emptyState = document.getElementById('emptyTableState');
+
+            if (appState.shifts.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            let html = '';
+
+            appState.shifts.forEach((shift) => {
+                const startDt = new Date(shift.startTime);
+                const endDt = new Date(shift.endTime);
+                const distance = shift.endOdometer - shift.startOdometer;
+
+                html += `
+                    <tr class="hover:bg-white/5 transition">
+                        <td class="p-3 font-mono">
+                            ${startDt.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'})} 
+                            <span class="text-slate-400">${startDt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                        </td>
+                        <td class="p-3 font-mono font-bold text-cyan-300">
+                            ${COUNTRY_FLAGS[shift.startCountry]||''} ${shift.startCountry} ➔ ${COUNTRY_FLAGS[shift.endCountry]||''} ${shift.endCountry}
+                        </td>
+                        <td class="p-3 font-mono">
+                            ${endDt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                        </td>
+                        <td class="p-3 font-mono font-bold ${shift.durationHours > 13 ? 'text-amber-400' : 'text-slate-200'}">
+                            ${Math.floor(shift.durationHours)}ч ${Math.floor((shift.durationHours % 1)*60)}мин
+                        </td>
+                        <td class="p-3 font-mono text-emerald-400 font-bold">
+                            +${distance} км
+                        </td>
+                        <td class="p-3 text-center">
+                            <button onclick="toggleReducedRest('${shift.id}')" class="px-2 py-1 rounded text-[10px] font-mono border transition ${shift.isReducedRest ? 'bg-amber-950 border-amber-500/50 text-amber-300' : 'bg-slate-800 border-white/10 text-slate-400'}">
+                                ${shift.isReducedRest ? 'Да (9ч)' : 'Нет (11ч)'}
+                            </button>
+                        </td>
+                        <td class="p-3 text-right">
+                            <button onclick="deleteShift('${shift.id}')" class="text-slate-500 hover:text-red-400 transition p-1 cursor-pointer" title="Удалить">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+
+            document.getElementById('statTotalShiftsCount').textContent = appState.shifts.length;
+            if (appState.shifts.length > 0) {
+                const last = appState.shifts[0];
+                document.getElementById('statShiftDuration').textContent = `${Math.floor(last.durationHours)}ч ${Math.floor((last.durationHours % 1)*60)}мин`;
+                document.getElementById('barShiftDuration').style.width = `${Math.min(100, (last.durationHours / 15) * 100)}%`;
+                document.getElementById('statOver13').textContent = last.durationHours > 13 ? 'Да (Удлинённая)' : 'Нет';
+            }
+        }
+
+        function renderWeeklyBoxes() {
+            const container = document.getElementById('weeklyDaysContainer');
+            if (!container) return;
+
+            let html = '';
+            const recentShifts = appState.shifts.slice(0, 7);
+            let totalDist = 0;
+            let reducedCount = 0;
+
+            for (let i = 0; i < 7; i++) {
+                const shift = recentShifts[i];
+                if (shift) {
+                    const startDt = new Date(shift.startTime);
+                    const dist = Math.max(0, (shift.endOdometer || 0) - (shift.startOdometer || 0));
+                    totalDist += dist;
+                    if (shift.isReducedRest) reducedCount++;
+
+                    const dayName = startDt.toLocaleDateString('ru-RU', { weekday: 'short' }).toUpperCase();
+                    const dateStr = startDt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+
+                    html += `
+                        <div class="bg-[#0F1218] border border-white/10 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                            <div class="flex justify-between items-center pb-1.5 border-b border-white/5">
+                                <span class="text-xs font-bold text-cyan-400 font-mono">${dayName} ${dateStr}</span>
+                                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${shift.isReducedRest ? 'bg-amber-950 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-300'}">
+                                    ${shift.isReducedRest ? '9ч (Сокр)' : '11ч (Норм)'}
+                                </span>
+                            </div>
+                            <div class="text-xs font-mono space-y-1">
+                                <div class="text-white font-bold flex items-center justify-between">
+                                    <span>Маршрут:</span>
+                                    <span class="text-cyan-300">${COUNTRY_FLAGS[shift.startCountry]||''} ${shift.startCountry} ➔ ${COUNTRY_FLAGS[shift.endCountry]||''} ${shift.endCountry}</span>
+                                </div>
+                                <div class="text-slate-400 flex items-center justify-between">
+                                    <span>Время:</span>
+                                    <span class="text-slate-200">${Math.floor(shift.durationHours)}ч ${Math.floor((shift.durationHours % 1)*60)}м</span>
+                                </div>
+                                <div class="text-slate-400 flex items-center justify-between">
+                                    <span>Пробег:</span>
+                                    <span class="text-emerald-400 font-bold">+${dist} км</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="bg-[#0F1218]/50 border border-white/5 rounded-xl p-3 flex flex-col items-center justify-center min-h-[110px] text-slate-600">
+                            <i class="fa-solid fa-moon text-xl mb-1 opacity-40"></i>
+                            <span class="text-[11px]">Нет данных</span>
+                        </div>
+                    `;
+                }
+            }
+
+            container.innerHTML = html;
+
+            document.getElementById('rtoReducedCount').textContent = `${reducedCount} из 3`;
+            document.getElementById('rtoTotalDistance').textContent = `${totalDist} км`;
+            
+            let compText = "0 ч (Компенсация не требуется)";
+            if (reducedCount > 0) {
+                compText = `${reducedCount * 2} ч (Присоединить к отдыху >= 9ч)`;
+            }
+            document.getElementById('rtoCompensationNeeded').textContent = compText;
+        }
+
+        function selectPauseDuration(hours) {
+            appState.selectedPauseHours = hours;
+            saveToLocalStorage();
+            renderApp();
+        }
+
+        function adjustReminder(mins) {
+            appState.reminderMinutes = Math.max(5, Math.min(120, appState.reminderMinutes + mins));
+            saveToLocalStorage();
+            renderApp();
+        }
+
+        function applyAlarmTime() {
+            const pauseStartBase = appState.shifts.length > 0 ? new Date(appState.shifts[0].endTime) : new Date();
+            const pauseEnd = new Date(pauseStartBase.getTime() + appState.selectedPauseHours * 3600000);
+            const alarmTime = new Date(pauseEnd.getTime() - appState.reminderMinutes * 60000);
+
+            playBeepSound();
+
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("TachoShift Pro — Таймер активирован", {
+                    body: `Напоминание установлено на ${alarmTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/2838/2838912.png"
+                });
+            }
+
+            showToast(`Будильник активирован на ${alarmTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`, "success");
+        }
+
+        function playBeepSound() {
+            try {
+                if (!alarmAudioContext) {
+                    alarmAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (alarmAudioContext.state === 'suspended') {
+                    alarmAudioContext.resume();
+                }
+                const osc = alarmAudioContext.createOscillator();
+                const gain = alarmAudioContext.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, alarmAudioContext.currentTime);
+                gain.gain.setValueAtTime(0.3, alarmAudioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, alarmAudioContext.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(alarmAudioContext.destination);
+                osc.start();
+                osc.stop(alarmAudioContext.currentTime + 0.5);
+            } catch(e) {
+                console.warn("Audio Context sound error", e);
+            }
+        }
+
+        function setCountryPreset(code) {
+            const select = document.getElementById('openCountrySelect');
+            if (select) {
+                select.value = code;
+                showToast(`Выбрана страна: ${code}`, "info");
+            }
+        }
+
+        function detectCountryAuto() {
+            showToast("Определение местоположения по GPS...", "info");
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        showToast(`GPS координаты: ${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`, "success");
+                    },
+                    (err) => {
+                        showToast("Не удалось получить GPS: сохранены стандартные параметры", "warning");
+                    },
+                    { timeout: 5000 }
+                );
+            } else {
+                showToast("Геолокация не поддерживается браузером", "error");
+            }
+        }
+
+        // CYRILLIC-SAFE PDF REPORT GENERATOR
+        async function generatePDF() {
+            const startVal = document.getElementById('pdfStartDate').value;
+            const endVal = document.getElementById('pdfEndDate').value;
+
+            let filtered = [...appState.shifts];
+
+            if (startVal) {
+                const sTime = new Date(startVal).getTime();
+                filtered = filtered.filter(s => new Date(s.startTime).getTime() >= sTime);
+            }
+            if (endVal) {
+                const eTime = new Date(endVal).getTime() + 86400000;
+                filtered = filtered.filter(s => new Date(s.startTime).getTime() <= eTime);
+            }
+
+            if (filtered.length === 0) {
+                showToast("За выбранный период смены не найдены!", "error");
+                return;
+            }
+
+            showToast("Формирование PDF отчета...", "info");
+
+            let totalKm = 0;
+            let totalHours = 0;
+            let reducedCount = 0;
+
+            filtered.forEach(s => {
+                const km = Math.max(0, (s.endOdometer || 0) - (s.startOdometer || 0));
+                totalKm += km;
+                totalHours += (s.durationHours || 0);
+                if (s.isReducedRest) reducedCount++;
+            });
+
+            // Create temporary rendering DOM container
+            const pdfContainer = document.createElement('div');
+            pdfContainer.style.position = 'absolute';
+            pdfContainer.style.left = '-9999px';
+            pdfContainer.style.top = '-9999px';
+            pdfContainer.style.width = '800px';
+            pdfContainer.style.backgroundColor = '#ffffff';
+            pdfContainer.style.color = '#0F1218';
+            pdfContainer.style.fontFamily = "'Inter', sans-serif";
+            pdfContainer.style.padding = '30px';
+            pdfContainer.style.boxSizing = 'border-box';
+
+            const nowStr = new Date().toLocaleString('ru-RU');
+
+            let rowsHtml = '';
+            filtered.forEach((s, idx) => {
+                const st = new Date(s.startTime);
+                const et = new Date(s.endTime);
+                const dist = Math.max(0, (s.endOdometer || 0) - (s.startOdometer || 0));
+
+                rowsHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                        <td style="padding: 8px 6px; text-align: center;">${filtered.length - idx}</td>
+                        <td style="padding: 8px 6px;">${st.toLocaleDateString('ru-RU')} ${st.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td style="padding: 8px 6px; font-weight: bold; text-align: center;">${s.startCountry || '--'}</td>
+                        <td style="padding: 8px 6px;">${et.toLocaleDateString('ru-RU')} ${et.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td style="padding: 8px 6px; font-weight: bold; text-align: center;">${s.endCountry || '--'}</td>
+                        <td style="padding: 8px 6px; text-align: center;">${Math.floor(s.durationHours)}ч ${Math.floor((s.durationHours % 1)*60)}м</td>
+                        <td style="padding: 8px 6px; text-align: right; font-weight: bold; color: #047857;">+${dist} км</td>
+                        <td style="padding: 8px 6px; text-align: center;">
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; ${s.isReducedRest ? 'background-color: #fef3c7; color: #92400e;' : 'background-color: #d1fae5; color: #065f46;'}">
+                                ${s.isReducedRest ? 'Сокращенный (9ч)' : 'Нормальный (11ч)'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            pdfContainer.innerHTML = `
+                <div style="border-bottom: 2px solid #00D1FF; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #0f172a;">TACHOSHIFT PRO</h1>
+                        <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b;">Официальный отчёт по учёту смен и отдыха (Регламент ЕС 561/2006)</p>
+                    </div>
+                    <div style="text-align: right; font-size: 10px; color: #64748b;">
+                        <div>Дата формирования: <strong>${nowStr}</strong></div>
+                        <div>Всего смен в отчёте: <strong>${filtered.length}</strong></div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; font-size: 11px;">
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                        <div style="color: #64748b; font-size: 10px; text-transform: uppercase;">Общий пробег:</div>
+                        <div style="font-size: 16px; font-weight: 800; color: #0284c7; margin-top: 2px;">${totalKm.toLocaleString('ru-RU')} км</div>
+                    </div>
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                        <div style="color: #64748b; font-size: 10px; text-transform: uppercase;">Время в смене:</div>
+                        <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 2px;">${Math.floor(totalHours)}ч ${Math.floor((totalHours % 1)*60)}м</div>
+                    </div>
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                        <div style="color: #64748b; font-size: 10px; text-transform: uppercase;">Сокращённых пауз (9ч):</div>
+                        <div style="font-size: 16px; font-weight: 800; color: #d97706; margin-top: 2px;">${reducedCount} смен</div>
+                    </div>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background-color: #0f172a; color: #ffffff; font-size: 10px; text-transform: uppercase;">
+                            <th style="padding: 8px 6px; text-align: center;">№</th>
+                            <th style="padding: 8px 6px; text-align: left;">Открытие</th>
+                            <th style="padding: 8px 6px; text-align: center;">Стр.</th>
+                            <th style="padding: 8px 6px; text-align: left;">Закрытие</th>
+                            <th style="padding: 8px 6px; text-align: center;">Стр.</th>
+                            <th style="padding: 8px 6px; text-align: center;">Время</th>
+                            <th style="padding: 8px 6px; text-align: right;">Пробег</th>
+                            <th style="padding: 8px 6px; text-align: center;">Тип отдыха</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+
+                <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 30px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between;">
+                    <div>Документ сформирован системой TachoShift Pro. Соответствует ЕС 561/2006.</div>
+                    <div>Подпись водителя: _____________________</div>
+                </div>
+            `;
+
+            document.body.appendChild(pdfContainer);
+
+            try {
+                const canvas = await html2canvas(pdfContainer, { scale: 2, useCORS: true });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = pdfWidth;
+                const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pdfHeight;
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pdfHeight;
+                }
+
+                pdf.save(`TachoShift_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+                closePdfModal();
+                showToast("PDF отчёт успешно загружен!", "success");
+            } catch (err) {
+                console.error("PDF generation error:", err);
+                showToast("Ошибка при сборке PDF файла", "error");
+            } finally {
+                document.body.removeChild(pdfContainer);
+            }
+        }
+
+        function openManualModal() {
+            document.getElementById('manualModal').classList.remove('hidden');
+            
+            const now = new Date();
+            const past = new Date(now.getTime() - 9 * 3600000);
+            
+            document.getElementById('mStartTime').value = past.toISOString().slice(0, 16);
+            document.getElementById('mEndTime').value = now.toISOString().slice(0, 16);
+            
+            if (appState.shifts.length > 0) {
+                const last = appState.shifts[0];
+                document.getElementById('mStartOdo').value = last.endOdometer;
+                document.getElementById('mEndOdo').value = last.endOdometer + 400;
+                document.getElementById('mStartCountry').value = last.endCountry || 'DE';
+            } else {
+                document.getElementById('mStartOdo').value = 150000;
+                document.getElementById('mEndOdo').value = 150450;
+                document.getElementById('mStartCountry').value = 'DE';
+            }
+            document.getElementById('mEndCountry').value = 'FR';
+        }
+
+        function closeManualModal() {
+            document.getElementById('manualModal').classList.add('hidden');
+        }
+
+        function saveManualShift(e) {
+            e.preventDefault();
+            const startT = document.getElementById('mStartTime').value;
+            const endT = document.getElementById('mEndTime').value;
+            const sC = document.getElementById('mStartCountry').value.toUpperCase().trim();
+            const eC = document.getElementById('mEndCountry').value.toUpperCase().trim();
+            const sOdo = parseInt(document.getElementById('mStartOdo').value);
+            const eOdo = parseInt(document.getElementById('mEndOdo').value);
+            const isRed = document.getElementById('mIsReducedRest').checked;
+
+            if (!startT || !endT || isNaN(sOdo) || isNaN(eOdo)) {
+                showToast("Заполните все необходимые поля!", "error");
+                return;
+            }
+
+            if (eOdo < sOdo) {
+                showToast("Конечный одометр не может быть меньше начального!", "error");
+                return;
+            }
+
+            const duration = (new Date(endT) - new Date(startT)) / 3600000;
+
+            if (duration <= 0) {
+                showToast("Время окончания должно быть позже времени начала!", "error");
+                return;
+            }
+
+            const shiftRecord = {
+                id: 'shift_m_' + Date.now(),
+                startTime: new Date(startT).toISOString(),
+                endTime: new Date(endT).toISOString(),
+                startCountry: sC || 'DE',
+                endCountry: eC || 'DE',
+                startOdometer: sOdo,
+                endOdometer: eOdo,
+                durationHours: duration,
+                isReducedRest: isRed
+            };
+
+            appState.shifts.unshift(shiftRecord);
+            saveToLocalStorage();
+            renderApp();
+            closeManualModal();
+            showToast("Смена успешно добавлена!", "success");
+        }
+
+        function toggleReducedRest(id) {
+            const s = appState.shifts.find(item => item.id === id);
+            if (s) {
+                s.isReducedRest = !s.isReducedRest;
+                saveToLocalStorage();
+                renderApp();
+                showToast(`Статус отдыха смены изменен`, "info");
+            }
+        }
+
+        function deleteShift(id) {
+            if (confirm("Вы уверены, что хотите удалить эту смену из истории?")) {
+                appState.shifts = appState.shifts.filter(item => item.id !== id);
+                saveToLocalStorage();
+                renderApp();
+                showToast("Смена удалена", "warning");
+            }
+        }
+
+        function clearAllData() {
+            if (confirm("ВНИМАНИЕ! Вы точно хотите сбросить всю историю смен и активную смену?")) {
+                appState = {
+                    activeShift: null,
+                    selectedPauseHours: 11,
+                    reminderMinutes: 30,
+                    shifts: []
+                };
+                saveToLocalStorage();
+                renderApp();
+                showToast("Все данные сброшены!", "warning");
+            }
+        }
+
+        function openPdfModal() {
+            document.getElementById('pdfModal').classList.remove('hidden');
+        }
+
+        function closePdfModal() {
+            document.getElementById('pdfModal').classList.add('hidden');
+        }
+
+        function downloadHtmlFile() {
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'TachoShift_Pro.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("HTML файл успешно скачан!", "success");
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `TachoShift_Data_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast("Данные экспортированы в JSON", "success");
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && (imported.shifts || imported.activeShift !== undefined)) {
+                        appState = { ...appState, ...imported };
+                        saveToLocalStorage();
+                        renderApp();
+                        showToast("Данные успешно импортированы!", "success");
+                    } else {
+                        showToast("Неверный формат JSON файла", "error");
+                    }
+                } catch (err) {
+                    showToast("Ошибка чтения файла JSON", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded-xl text-xs font-semibold shadow-2xl flex items-center space-x-2 transition-all transform duration-300 translate-y-2 opacity-0 pointer-events-auto border`;
+
+            let iconClass = 'fa-info-circle';
+            let bgClasses = 'bg-[#181E29] text-cyan-300 border-cyan-500/40';
+
+            if (type === 'success') {
+                iconClass = 'fa-circle-check';
+                bgClasses = 'bg-emerald-950 text-emerald-200 border-emerald-500/50';
+            } else if (type === 'error') {
+                iconClass = 'fa-circle-exclamation';
+                bgClasses = 'bg-rose-950 text-rose-200 border-rose-500/50';
+            } else if (type === 'warning') {
+                iconClass = 'fa-triangle-exclamation';
+                bgClasses = 'bg-amber-950 text-amber-200 border-amber-500/50';
+            }
+
+            toast.className = `${toast.className} ${bgClasses}`;
+            toast.innerHTML = `<i class="fa-solid ${iconClass} text-sm"></i><span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
